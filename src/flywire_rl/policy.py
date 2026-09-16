@@ -226,7 +226,7 @@ class SpikingPolicy(nn.Module):
         input_indices: Tensor,
         output_indices: Tensor,
         rank: int = 8,
-        steps: int = 30,
+        steps: int = 300,  # 30 ms at the published dt; see experiment.DECISION_WINDOW_MS
         mode: CouplingMode = CouplingMode.SPARSE,
         input_drive_mv: float = 1.0,
         params: ShiuParams | None = None,

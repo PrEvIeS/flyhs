@@ -35,12 +35,49 @@ from flywire_rl.controls import (
 from flywire_rl.minicard import MiniCard, board_control_opponent, greedy_face_opponent
 from flywire_rl.policy import SpikingPolicy, reference_observations
 from flywire_rl.ppo import train
+from flywire_rl.spiking import ShiuParams
 
 VALID_LABELS = ("pilot", "confirmatory")
-#: Tonic sensory drive, millivolts per step, identical across arms. It is
-#: dt-bound: a constant drive settles at ``drive / (1 - exp(-dt/t_mbr))`` above
-#: rest, so it must be recalibrated if ``ShiuParams.dt_ms`` changes.
-INPUT_DRIVE_MV = 0.06
+#: Tonic sensory drive, identical across arms, scaling the encoder's output. It
+#: is dt-bound: a constant drive settles at ``drive / (1 - exp(-dt/t_mbr))``
+#: above rest, so it must be recalibrated if ``ShiuParams.dt_ms`` changes.
+#:
+#: Restored to the 20.0 used before the Shiu re-parameterisation. At the 0.06
+#: that replaced it the drive reaching a neuron peaked at 0.03 mV against the
+#: 7 mV gap from rest to threshold, and **not one neuron in the 15,400-node
+#: subset fired** -- not even the directly driven inputs. At 20.0, 914 of 1042
+#: input neurons fire.
+#:
+#: Stated plainly: 20.0 drives the input population well past threshold rather
+#: than to a calibrated rate. Amendment A4 removed the 5 Hz rate calibration as
+#: ill-posed once branching is fixed, and nothing replaced it, so this is a
+#: working value and not a calibrated one. What it must not do is differ
+#: between arms, and it does not.
+INPUT_DRIVE_MV = 20.0
+
+#: The decision window **in milliseconds**, as the protocol pre-registers it.
+#:
+#: Expressed in time rather than steps on purpose. The protocol fixed "30 ms
+#: decision window" at dt = 1.0 ms, so 30 steps. Moving to the Shiu
+#: parameterisation cut dt to 0.1 ms and left the step count at 30, which
+#: silently shortened the window to 3 ms -- shorter than two synaptic delays
+#: (t_delay = 1.8 ms), so no signal could cross more than one hop. Measured on
+#: the real subset at that window: zero non-input neurons fired, and every one
+#: of the 44 output units sat at v_rest in all three arms. Raising w_syn a
+#: hundredfold did not help, because the binding constraint was time, not gain.
+#:
+#: Deriving the step count from dt keeps that from recurring: change dt and the
+#: window stays 30 ms.
+DECISION_WINDOW_MS = 30.0
+
+
+def decision_window_steps(params: ShiuParams | None = None) -> int:
+    """Steps spanning ``DECISION_WINDOW_MS`` at the substrate's own dt."""
+    return round(DECISION_WINDOW_MS / (params or ShiuParams()).dt_ms)
+
+
+#: 300 at the published dt = 0.1 ms.
+DECISION_WINDOW_STEPS = decision_window_steps()
 DEFAULT_OPPONENTS = (board_control_opponent, greedy_face_opponent)
 
 
@@ -99,7 +136,7 @@ def make_policy(
     output_indices: torch.Tensor,
     seed: int = 0,
     rank: int = 8,
-    steps: int = 30,
+    steps: int = DECISION_WINDOW_STEPS,
     input_drive_mv: float = INPUT_DRIVE_MV,
     device: str = "cpu",
     standardise: bool = False,
@@ -184,7 +221,7 @@ def run_seed(
     total_steps: int,
     n_eval_episodes: int,
     rank: int = 8,
-    steps: int = 30,
+    steps: int = DECISION_WINDOW_STEPS,
     device: str = "cpu",
     input_drive_mv: float = INPUT_DRIVE_MV,
     standardise: bool = False,
@@ -222,7 +259,7 @@ def run_experiment(
     total_steps: int = 500_000,
     n_eval_episodes: int = 100,
     rank: int = 8,
-    steps: int = 30,
+    steps: int = DECISION_WINDOW_STEPS,
     device: str = "cpu",
     arm_seed: int = 0,
     swaps_per_edge: int = 100,
@@ -278,6 +315,7 @@ def run_experiment(
             "n_eval_episodes": n_eval_episodes,
             "rank": rank,
             "decision_window_steps": steps,
+            "decision_window_ms": steps * ShiuParams().dt_ms,
             "arm_seed": arm_seed,
             "swaps_per_edge": swaps_per_edge,
             "standardise": standardise,
