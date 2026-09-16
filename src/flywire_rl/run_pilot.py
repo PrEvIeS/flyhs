@@ -173,7 +173,7 @@ def main(argv=None) -> int:
             )
 
         suffix = f"_{args.tag}" if args.tag else ""
-        path = out_dir / f"{args.label}_v783_{name}{suffix}.json"
+        path = out_dir / f"{args.label}_{C.RELEASE_TAG}_{name}{suffix}.json"
         save_result(result, path)
         written.append(str(path))
         print(f"  saved {path}  [{time.time() - started:.0f}s]", flush=True)

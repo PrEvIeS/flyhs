@@ -20,7 +20,9 @@ the label is required rather than optional.
 from __future__ import annotations
 
 import json
+import os
 import platform
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -71,9 +73,35 @@ INPUT_DRIVE_MV = 20.0
 DECISION_WINDOW_MS = 30.0
 
 
+#: How far the realised window may sit from the pre-registered one before the
+#: run is refused, in milliseconds. Tight on purpose: a whole step at the
+#: published dt is 0.1 ms, so anything a tenth of that size is a dt that does
+#: not divide the window, not a rounding artefact.
+WINDOW_TOLERANCE_MS = 1e-2
+
+
 def decision_window_steps(params: ShiuParams | None = None) -> int:
-    """Steps spanning ``DECISION_WINDOW_MS`` at the substrate's own dt."""
-    return round(DECISION_WINDOW_MS / (params or ShiuParams()).dt_ms)
+    """Steps spanning ``DECISION_WINDOW_MS`` at the substrate's own dt.
+
+    Deriving the count from dt stops the *old* failure -- a hardcoded 30 that
+    silently became 3 ms when dt moved to 0.1 -- but it does not stop the
+    mirror image of it. ``round`` absorbs any remainder without complaint, so a
+    future dt that does not divide 30 ms evenly would drift the window off the
+    pre-registered value with nothing to show for it: dt = 0.13 rounds 230.77
+    up to 231 steps, a 30.03 ms window presented as 30. That is the same class
+    of silent protocol drift, so it raises rather than rounds.
+    """
+    dt_ms = (params or ShiuParams()).dt_ms
+    steps = round(DECISION_WINDOW_MS / dt_ms)
+    realised_ms = steps * dt_ms
+    if abs(realised_ms - DECISION_WINDOW_MS) > WINDOW_TOLERANCE_MS:
+        raise ValueError(
+            f"dt_ms = {dt_ms} does not divide the pre-registered "
+            f"{DECISION_WINDOW_MS} ms decision window: {steps} steps span "
+            f"{realised_ms:.4f} ms. Choose a dt that divides the window, or "
+            f"amend DECISION_WINDOW_MS deliberately."
+        )
+    return steps
 
 
 #: 300 at the published dt = 0.1 ms.
@@ -162,10 +190,17 @@ def make_policy(
         steps=steps,
         input_drive_mv=input_drive_mv,
     ).to(device)
-    if standardise:
-        policy.calibrate_readout(
-            reference_observations(n_reference_states).to(device)
-        )
+    # Attached rather than returned, so that every existing caller keeps the
+    # bare policy it expects. Dropping these numbers was the defect: a readout
+    # that collapses to mostly dead units makes calibration fall back to
+    # scale = 1.0 by design, which turns standardisation into a no-op for that
+    # arm -- and the saved result would have recorded only ``standardise: true``
+    # and shown nothing of it.
+    policy.calibration = (
+        policy.calibrate_readout(reference_observations(n_reference_states).to(device))
+        if standardise
+        else None
+    )
     return policy
 
 
@@ -225,9 +260,15 @@ def run_seed(
     device: str = "cpu",
     input_drive_mv: float = INPUT_DRIVE_MV,
     standardise: bool = False,
+    calibration_sink: list[dict[str, float]] | None = None,
     **train_kwargs,
 ) -> np.ndarray:
-    """Train one policy on one arm with one seed, then evaluate it."""
+    """Train one policy on one arm with one seed, then evaluate it.
+
+    ``calibration_sink`` collects the readout statistics measured before
+    training, so the saved result can show whether standardisation actually did
+    anything for this arm rather than only that it was requested.
+    """
     policy = make_policy(
         arm,
         input_indices,
@@ -239,6 +280,8 @@ def run_seed(
         device,
         standardise=standardise,
     )
+    if calibration_sink is not None and policy.calibration is not None:
+        calibration_sink.append(policy.calibration)
     train(
         policy,
         lambda s: _make_game(s),
@@ -272,8 +315,11 @@ def run_experiment(
     arms = build_arms(real, seed=arm_seed, swaps_per_edge=swaps_per_edge)
     scores: dict[str, np.ndarray] = {}
 
+    calibration: dict[str, list[dict[str, float]]] = {}
+
     for name, arm in arms.items():
         rows = []
+        sink: list[dict[str, float]] = []
         for seed in range(n_seeds):
             if progress is not None:
                 progress(name, seed)
@@ -289,10 +335,13 @@ def run_experiment(
                     steps,
                     device,
                     standardise=standardise,
+                    calibration_sink=sink,
                     **train_kwargs,
                 )
             )
         scores[name] = np.stack(rows)
+        if sink:
+            calibration[name] = sink
 
     manifest = {}
     if manifest_path is not None and Path(manifest_path).exists():
@@ -308,6 +357,10 @@ def run_experiment(
             "python": platform.python_version(),
             "host": platform.platform(),
             "manifest": {k: v.get("sha256") for k, v in manifest.items()},
+            # Empty on a raw run. On a standardised one these are what say
+            # whether standardisation was real for each arm or a no-op over a
+            # dead readout, which the boolean flag alone cannot distinguish.
+            "calibration": calibration,
         },
         config={
             "n_seeds": n_seeds,
@@ -327,8 +380,20 @@ def run_experiment(
 
 
 def save_result(result: ExperimentResult, path: Path) -> None:
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text(
+    """Write a result so that an interrupted write cannot destroy a good one.
+
+    ``write_text`` truncates the destination before it writes a byte, so a
+    crash, a reboot or a full disk mid-write leaves nothing at a path that held
+    a complete run a moment earlier. These runs cost GPU-hours and the filename
+    is deterministic, so a rerun with the same label and tag aims at exactly
+    the file it would be most expensive to lose. Writing to a sibling temp file
+    and moving it into place makes the replacement atomic on the same
+    filesystem: the path holds either the old result or the new one, never a
+    half of either.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = (
         json.dumps(
             {
                 "label": result.label,
@@ -340,6 +405,26 @@ def save_result(result: ExperimentResult, path: Path) -> None:
         )
         + "\n"
     )
+
+    # Same directory, so os.replace is a rename within one filesystem and
+    # therefore atomic. A temp file in the system temp dir would not be.
+    handle = tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".partial",
+        delete=False,
+    )
+    try:
+        with handle as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(handle.name, path)
+    except BaseException:
+        Path(handle.name).unlink(missing_ok=True)
+        raise
 
 
 def load_result(path: Path) -> ExperimentResult:

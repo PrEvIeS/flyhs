@@ -32,6 +32,14 @@ import pandas as pd
 
 RELEASE = "fafb-v783-codex"
 
+#: The version component of :data:`RELEASE`, for naming result files.
+#:
+#: Derived rather than retyped. ``verify_manifest`` checks the four file
+#: digests, not this string, and provenance records only those digests -- so a
+#: result filename carrying a literal ``v783`` would keep claiming v783 after
+#: the manifest was repinned to another release, with nothing to catch it.
+RELEASE_TAG = RELEASE.split("-")[1]
+
 _BUCKET = "https://storage.googleapis.com/flywire-data/codex/data/fafb/783"
 
 SOURCE_URLS: dict[str, str] = {
