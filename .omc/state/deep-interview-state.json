@@ -1,0 +1,442 @@
+{
+  "active": true,
+  "current_phase": "deep-interview",
+  "state": {
+    "interview_id": "deep-interview-flywire-hearthstone",
+    "type": "greenfield",
+    "initial_idea": "Determine whether a FlyWire-derived Drosophila connectome substrate with spiking dynamics and biologically constrained learning provides measurable value for sequential decisions in a partially observable Hearthstone-like environment.",
+    "initial_context_summary": "Research-first program; not an LLM agent. Use FlyWire data and annotations, the existing fly-brain simulation foundation, an independently validated Hearthstone-like environment, modern SNN learning, matched baselines, ablations, and reproducible compute/biological metrics. Full FlyWire plus end-to-end full Hearthstone is not the first target.",
+    "rounds": [
+      {
+        "round": 0,
+        "question": "Confirm the top-level component topology.",
+        "answer": "Topology is correct.",
+        "topology_status": "confirmed"
+      },
+      {
+        "round": 1,
+        "component": "evaluation-data-baselines-ablations",
+        "targeting": "success-criteria",
+        "question": "What should be the primary claim of the first publishable version?",
+        "answer": "Topology value: test whether real FlyWire topology provides an advantage over matched random/shuffled controls.",
+        "overall_dimension_scores": {
+          "goal": 0.55,
+          "constraints": 0.30,
+          "criteria": 0.35
+        },
+        "ambiguity": 0.585
+      },
+      {
+        "round": 2,
+        "component": "hearthstone-environment-interfaces",
+        "targeting": "constraint-clarity",
+        "question": "What environment boundary is accepted for the first publishable topology experiment?",
+        "answer": "Toy card game.",
+        "overall_dimension_scores": {
+          "goal": 0.65,
+          "constraints": 0.35,
+          "criteria": 0.45
+        },
+        "ambiguity": 0.50
+      },
+      {
+        "round": 3,
+        "component": "flywire-substrate",
+        "targeting": "constraint-clarity",
+        "question": "What connectome scope is fixed for the first topology experiment?",
+        "answer": "Functional subset.",
+        "overall_dimension_scores": {
+          "goal": 0.65,
+          "constraints": 0.40,
+          "criteria": 0.45
+        },
+        "ambiguity": 0.50
+      },
+      {
+        "round": 4,
+        "component": "snn-simulation-learning",
+        "targeting": "constraint-clarity",
+        "challenge_mode": "contrarian",
+        "question": "What identical learning contract should be used across topology arms?",
+        "answer": "Initially selected frozen reservoir plus trainable readout, then asked whether LoRA could help.",
+        "overall_dimension_scores": {
+          "goal": 0.75,
+          "constraints": 0.70,
+          "criteria": 0.60
+        },
+        "ambiguity": 0.31
+      },
+      {
+        "round": 5,
+        "component": "snn-simulation-learning",
+        "targeting": "goal-clarity",
+        "question": "How should a LoRA-like low-rank adapter be positioned in the causal claim?",
+        "answer": "Make low-rank adaptation the primary method.",
+        "overall_dimension_scores": {
+          "goal": 0.75,
+          "constraints": 0.65,
+          "criteria": 0.60
+        },
+        "ambiguity": 0.33
+      },
+      {
+        "round": 6,
+        "component": "hearthstone-environment-interfaces",
+        "targeting": "success-criteria",
+        "challenge_mode": "simplifier",
+        "question": "What is success in the first toy-game topology experiment?",
+        "answer": "Real topology plus adapter should be compared with matched random/shuffled controls on mean return and sample efficiency under fixed compute/sample budget.",
+        "overall_dimension_scores": {
+          "goal": 0.78,
+          "constraints": 0.72,
+          "criteria": 0.78
+        },
+        "ambiguity": 0.24
+      },
+      {
+        "round": 7,
+        "component": "evaluation-data-baselines-ablations",
+        "targeting": "constraint-clarity",
+        "question": "What matching contract is required for causal topology controls?",
+        "answer": "Strict matched controls: preserve degree/edge-count/sign/weight-distribution properties where applicable, and match adapter rank, initialization family, optimizer, seeds, trainable parameter count, and compute/sample budgets.",
+        "overall_dimension_scores": {
+          "goal": 0.85,
+          "constraints": 0.88,
+          "criteria": 0.85
+        },
+        "ambiguity": 0.15
+      }
+    ],
+    "current_ambiguity": 0.141,
+    "threshold": 0.2,
+    "threshold_source": "default",
+    "spec_path": ".omc/specs/deep-interview-flywire-hearthstone.md",
+    "status": "protocol_locked",
+    "topology": {
+      "status": "confirmed",
+      "confirmed_at": "2026-09-15",
+      "components": [
+        {
+          "id": "flywire-substrate",
+          "name": "FlyWire substrate and reproducible connectome data",
+          "description": "Select and reproduce a functional connectome subset, annotations, weights, delays, and provenance.",
+          "status": "active",
+          "evidence": [
+            "User selected Functional subset in Round 3."
+          ],
+          "clarity_scores": {
+            "goal": 0.80,
+            "constraints": 0.70,
+            "criteria": 0.65
+          },
+          "weakest_dimension": "criteria"
+        },
+        {
+          "id": "snn-simulation-learning",
+          "name": "SNN simulation and learning",
+          "description": "Use spiking dynamics with a primary low-rank adaptation method whose exact graph-preserving parameterization remains to be fixed.",
+          "status": "active",
+          "evidence": [
+            "User made low-rank adaptation the primary method in Round 5."
+          ],
+          "clarity_scores": {
+            "goal": 0.78,
+            "constraints": 0.65,
+            "criteria": 0.62
+          },
+          "weakest_dimension": "criteria"
+        },
+        {
+          "id": "hearthstone-environment-interfaces",
+          "name": "Hearthstone-like environment and interfaces",
+          "description": "Build an independent toy card game with observation encoding, hierarchical action decoding, legality, and curriculum stages.",
+          "status": "active",
+          "evidence": [
+            "User selected Toy card game in Round 2."
+          ],
+          "clarity_scores": {
+            "goal": 0.75,
+            "constraints": 0.70,
+            "criteria": 0.78
+          },
+          "weakest_dimension": "goal"
+        },
+        {
+          "id": "evaluation-data-baselines-ablations",
+          "name": "Evaluation, datasets, baselines, and ablations",
+          "description": "Test topology value against strict matched controls using game return, sample efficiency, neural, biological, and compute metrics.",
+          "status": "active",
+          "evidence": [
+            "User selected Topology value as the primary publishable claim in Round 1 and Strict matched controls in Round 7."
+          ],
+          "clarity_scores": {
+            "goal": 0.85,
+            "constraints": 0.88,
+            "criteria": 0.85
+          },
+          "weakest_dimension": "criteria"
+        }
+      ],
+      "deferrals": [],
+      "last_targeted_component_id": "hearthstone-environment-interfaces"
+    },
+    "challenge_modes_used": [
+      "contrarian",
+      "simplifier"
+    ],
+    "ontology_snapshots": [
+      {
+        "round": 1,
+        "stability_ratio": null,
+        "matching_reasoning": "First scored round; all entities are new.",
+        "entities": [
+          "Connectome",
+          "NeuralCircuit",
+          "Neuron",
+          "Synapse",
+          "Environment",
+          "Observation",
+          "Action",
+          "Policy",
+          "Reward",
+          "Episode",
+          "Baseline",
+          "Ablation",
+          "Metric",
+          "Dataset",
+          "TrainingRun"
+        ]
+      },
+      {
+        "round": 2,
+        "stability_ratio": 0.9375,
+        "matching_reasoning": "The 15 prior entities matched by name; CurriculumStage is new.",
+        "entities": [
+          "Connectome",
+          "NeuralCircuit",
+          "Neuron",
+          "Synapse",
+          "Environment",
+          "Observation",
+          "Action",
+          "Policy",
+          "Reward",
+          "Episode",
+          "Baseline",
+          "Ablation",
+          "Metric",
+          "Dataset",
+          "TrainingRun",
+          "CurriculumStage"
+        ]
+      },
+      {
+        "round": 3,
+        "stability_ratio": 0.9412,
+        "matching_reasoning": "The 16 prior entities matched by name; TopologyControl is new.",
+        "entities": [
+          "Connectome",
+          "NeuralCircuit",
+          "Neuron",
+          "Synapse",
+          "Environment",
+          "Observation",
+          "Action",
+          "Policy",
+          "Reward",
+          "Episode",
+          "Baseline",
+          "Ablation",
+          "Metric",
+          "Dataset",
+          "TrainingRun",
+          "CurriculumStage",
+          "TopologyControl"
+        ]
+      },
+      {
+        "round": 4,
+        "stability_ratio": 0.9444,
+        "matching_reasoning": "The 17 prior entities matched by name; LowRankAdapter is new.",
+        "entities": [
+          "Connectome",
+          "NeuralCircuit",
+          "Neuron",
+          "Synapse",
+          "Environment",
+          "Observation",
+          "Action",
+          "Policy",
+          "Reward",
+          "Episode",
+          "Baseline",
+          "Ablation",
+          "Metric",
+          "Dataset",
+          "TrainingRun",
+          "CurriculumStage",
+          "TopologyControl",
+          "LowRankAdapter"
+        ]
+      },
+      {
+        "round": 5,
+        "stability_ratio": 1.0,
+        "matching_reasoning": "All 18 entities matched by name; none are new, changed, or removed.",
+        "entities": [
+          "Connectome",
+          "NeuralCircuit",
+          "Neuron",
+          "Synapse",
+          "Environment",
+          "Observation",
+          "Action",
+          "Policy",
+          "Reward",
+          "Episode",
+          "Baseline",
+          "Ablation",
+          "Metric",
+          "Dataset",
+          "TrainingRun",
+          "CurriculumStage",
+          "TopologyControl",
+          "LowRankAdapter"
+        ]
+      },
+      {
+        "round": 6,
+        "stability_ratio": 1.0,
+        "matching_reasoning": "All 18 entities matched by name; success criterion refined without introducing a new domain entity.",
+        "entities": [
+          "Connectome",
+          "NeuralCircuit",
+          "Neuron",
+          "Synapse",
+          "Environment",
+          "Observation",
+          "Action",
+          "Policy",
+          "Reward",
+          "Episode",
+          "Baseline",
+          "Ablation",
+          "Metric",
+          "Dataset",
+          "TrainingRun",
+          "CurriculumStage",
+          "TopologyControl",
+          "LowRankAdapter"
+        ]
+      },
+      {
+        "round": 7,
+        "stability_ratio": 1.0,
+        "matching_reasoning": "All 18 entities matched by name; matching constraints refined without introducing a new domain entity.",
+        "entities": [
+          "Connectome",
+          "NeuralCircuit",
+          "Neuron",
+          "Synapse",
+          "Environment",
+          "Observation",
+          "Action",
+          "Policy",
+          "Reward",
+          "Episode",
+          "Baseline",
+          "Ablation",
+          "Metric",
+          "Dataset",
+          "TrainingRun",
+          "CurriculumStage",
+          "TopologyControl",
+          "LowRankAdapter"
+        ]
+      }
+    ],
+    "codebase_context": "Greenfield workspace: only agent/instruction and operational files; no product implementation to extend.",
+    "protocol_locked_at": "2026-09-16",
+    "protocol": {
+      "subset": "MB+CX, FAFB v783, syn_count>=5, majority-neuropil + 1-hop interface",
+      "adapter": "masked low-rank: (B@A)*M_arm, r=8 primary, sweep {2,8,32} secondary",
+      "budget": "10 seeds x 5e5 env steps x 4 arms; escalation to 1e6 re-runs ALL arms",
+      "learning_rule": "surrogate-gradient truncated BPTT primary; e-prop secondary",
+      "stats": "IQM + stratified bootstrap 95% CI, Holm over 2 primary comparisons",
+      "backends": "PyTorch CUDA learning; Brian2 CPU cross-check",
+      "amendments": [
+        {
+          "id": "A1",
+          "date": "2026-09-16",
+          "title": "Two-host execution model",
+          "changes": "P6 becomes device-agnostic: confirmatory on CUDA desktop (RTX 4070 Ti), development/pilots on Apple M1 Pro 16GB via MPS. GeNN/Brian2CUDA are CUDA-host-only. Adds cross-device spike agreement gate and dense/sparse equivalence gate. Adds shared lockfile + run metadata requirement.",
+          "unchanged": [
+            "P1",
+            "P2",
+            "P3",
+            "P4",
+            "P5"
+          ]
+        },
+        {
+          "id": "A2",
+          "date": "2026-09-16",
+          "title": "Starting HP 20 -> 30",
+          "changes": "P2 START_HP raised. At 20 HP racing beat board control 88% and games ended by turn 5-7: the optimum was degenerate and placed no demand on working memory, the capability CX was selected for. At 30 HP the strategic policy dominates and games run 10-22 turns / 72-139 decisions. Initial diagnosis (removal of taunt) was refuted by measurement: the control mirror is 51% at 22 turns, so the game itself was sound and the 74% skew was an artefact of the greedy bot.",
+          "residual": "control mirror favours player two 60.8% - alternate seats and report per-seat win rates",
+          "applied_before_any_run": true,
+          "unchanged": [
+            "P1",
+            "P3",
+            "P4",
+            "P5",
+            "P6"
+          ]
+        },
+        {
+          "id": "A3",
+          "date": "2026-09-16",
+          "title": "Branching ratio replaces spectral radius",
+          "changes": "P4 structural match: rho=0.95 understated the weight scale by ~1780x for a spiking substrate. At rho=0.95, 100% of 15,710 spikes stayed in directly-driven input neurons and none propagated, so all three arms returned byte-identical pilot scores. Replaced by branching ratio ~1 measured with no external drive; each arm gets its own scale.",
+          "unchanged": [
+            "P1",
+            "P2",
+            "P5",
+            "P6"
+          ]
+        },
+        {
+          "id": "A4",
+          "date": "2026-09-16",
+          "title": "Membrane readout; input-gain calibration removed",
+          "changes": "P3 readout: spike counts leave the median output unit with zero variance across game states unless exactly at criticality; replaced by mean pre-reset membrane potential. P4 5 Hz input calibration removed as ill-posed once branching is fixed, replaced by one constant gain shared by all arms. Cost: the claim weakens from descending-neuron discharge to sub-threshold potential.",
+          "unchanged": [
+            "P1",
+            "P2",
+            "P5",
+            "P6"
+          ]
+        }
+      ]
+    },
+    "hosts": {
+      "dev": {
+        "machine": "Apple M1 Pro / MacBookPro18,3",
+        "cores": 8,
+        "ram_gb": 16,
+        "arch": "arm64",
+        "device": "mps",
+        "cuda": false,
+        "python": "3.14.7",
+        "torch_available": "2.14.0"
+      },
+      "confirmatory": {
+        "machine": "RTX 4070 Ti / Ryzen 9 7900X",
+        "ram_gb": 32,
+        "vram_gb": 12,
+        "device": "cuda",
+        "status": "available, separate desktop"
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+[project]
+name = "flywire-rl"
+version = "0.1.0"
+description = "FlyWire-constrained spiking substrate for sequential decisions in a partially observable card game"
+
+# Pinned to 3.13: torch, brian2 and scipy all ship cp313 wheels for both
+# macos-aarch64 (dev host) and linux-x86_64 (CUDA confirmatory host), which is
+# what protocol amendment A1 requires of a single shared lockfile. 3.14 risks a
+# source build of brian2 and would break that guarantee.
+requires-python = ">=3.13,<3.14"
+
+dependencies = [
+    "torch>=2.14",
+    "numpy>=2.0",
+    "scipy>=1.15",
+    "pandas>=2.2",
+    "networkx>=3.4",
+    "pyarrow>=18",
+    "brian2>=2.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flywire_rl"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -4,3 +4,28 @@
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# FlyWire source data: large, redistributable only under its own licence, and
+# reproduced from the data/manifest.json hashes required by P1 rather than
+# committed to the repository.
+data/raw/
+# Derived cache of the P1 subset; rebuilt from data/raw plus the manifest.
+data/subset_*.npz
+
+# OMC runtime state is machine-local (HUD caches, agent replays, session
+# tracking). Only the spec and the interview record are project content.
+.omc/state/*
+!.omc/state/deep-interview-state.json
+.omc/project-memory.json
+*.bak
+
+# Editor / tooling state
+.idea/
+.codegraph/
