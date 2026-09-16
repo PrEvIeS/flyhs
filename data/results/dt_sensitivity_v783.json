@@ -1,0 +1,88 @@
+{
+  "label": "dt_sensitivity",
+  "question": "The corrected 30 ms window costs 10x. Can dt be raised to buy it back? The integrator uses the exact linear solution, so a coarser dt costs spike-time quantisation rather than stability.",
+  "method": "Same 30 ms window at every dt (steps = 30/dt), same reference states, published w_syn. Readout compared against dt = 0.1 by Pearson correlation over all output units and states.",
+  "correlation_vs_dt_0.1": {
+    "0.1": {
+      "real": 1.0,
+      "shuffled": 1.0,
+      "random": 1.0,
+      "steps": 300,
+      "delay_steps": 18,
+      "arm_spread_pp": 0.0
+    },
+    "0.2": {
+      "real": 0.9941,
+      "shuffled": 0.9809,
+      "random": 0.981,
+      "steps": 150,
+      "delay_steps": 9,
+      "arm_spread_pp": 1.3
+    },
+    "0.3": {
+      "real": 0.984,
+      "shuffled": 0.9584,
+      "random": 0.9488,
+      "steps": 100,
+      "delay_steps": 6,
+      "arm_spread_pp": 3.5
+    },
+    "0.45": {
+      "real": 0.9712,
+      "shuffled": 0.9252,
+      "random": 0.8897,
+      "steps": 67,
+      "delay_steps": 4,
+      "arm_spread_pp": 8.1
+    },
+    "0.5": {
+      "real": 0.9623,
+      "shuffled": 0.9201,
+      "random": 0.8777,
+      "steps": 60,
+      "delay_steps": 4,
+      "arm_spread_pp": 8.5
+    },
+    "0.6": {
+      "real": 0.9557,
+      "shuffled": 0.8982,
+      "random": 0.8276,
+      "steps": 50,
+      "delay_steps": 3,
+      "arm_spread_pp": 12.8
+    },
+    "0.9": {
+      "real": 0.9106,
+      "shuffled": 0.8562,
+      "random": 0.7563,
+      "steps": 33,
+      "delay_steps": 2,
+      "arm_spread_pp": 15.4
+    },
+    "1.0": {
+      "real": 0.9089,
+      "shuffled": 0.8393,
+      "random": 0.7264,
+      "steps": 30,
+      "delay_steps": 2,
+      "arm_spread_pp": 18.2
+    }
+  },
+  "verdict": "No. dt is not a free efficiency knob here, because its error is topology-correlated.",
+  "reasoning": [
+    "Fidelity degrades monotonically with dt in every arm, and the degradation is ALWAYS ordered real > shuffled > random.",
+    "The spread between arms widens with dt: 1.3 percentage points at dt=0.2, 3.5 at 0.3, 8.2 at 0.45, 12.8 at 0.6, 15.4 at 0.9.",
+    "Mechanism: the random arm propagates far more activity (6527 neurons spiking vs 2379 for real at dt=0.1), so it accumulates the most spike-time quantisation error. The ordering is a consequence of the topologies, not noise.",
+    "Direction of the bias is the worst possible one: a coarser dt preserves the real arm better than its own controls, which would favour the hypothesis under test.",
+    "Making dt divide t_delay = 1.8 ms exactly (0.2, 0.3, 0.6, 0.9) helps but does not rescue it: dt=0.3 divides exactly and still shows a 3.5 pp spread. The dominant error is not delay quantisation but the resolution of tau_syn = 5 ms and t_refractory = 2.2 ms."
+  ],
+  "only_defensible_option": {
+    "dt_ms": 0.2,
+    "steps": 150,
+    "saving": "2x",
+    "why": "t_delay divides exactly into 9 steps, correlation is 0.98-0.99 in every arm, and the arm spread is 1.3 pp -- the smallest of any coarsening. Still a judgement call, and it should be pre-registered as an amendment rather than adopted silently.",
+    "caveat": "Even here the spread is arm-ordered. If adopted, the cross-device agreement gate of amendment A1 should be re-run at the chosen dt, not inherited from 0.1."
+  },
+  "consequence": "The confirmatory budget cannot be rescued by dt. It has to come from elsewhere: fewer seeds, a shorter per-seed budget, a smaller P1 subset, or larger GPU batches. That is a protocol decision, not an implementation one.",
+  "generated": "2026-09-16"
+}
