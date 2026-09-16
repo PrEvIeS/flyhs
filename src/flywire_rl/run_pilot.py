@@ -105,6 +105,18 @@ def main(argv=None) -> int:
     parser.add_argument("--out", default="data/results")
     parser.add_argument("--tag", default="", help="suffix for the output filenames")
     parser.add_argument(
+        "--coupling",
+        choices=["sparse", "gather", "dense"],
+        default="sparse",
+        help=(
+            "how the frozen wiring is applied. The modes agree numerically "
+            "(test_spiking) but not in cost: measured on a 12 GB card at the "
+            "300-step window, gather runs in 274 ms and 961 MB while sparse "
+            "does not finish. The default is unchanged so earlier results stay "
+            "comparable -- pass gather to make the restored window runnable."
+        ),
+    )
+    parser.add_argument(
         "--only",
         choices=["both", "raw", "standardised"],
         default="both",
@@ -133,9 +145,16 @@ def main(argv=None) -> int:
     )
     print(
         f"window: {DECISION_WINDOW_MS:.0f} ms = {DECISION_WINDOW_STEPS} steps, "
-        f"drive {INPUT_DRIVE_MV}",
+        f"drive {INPUT_DRIVE_MV}, coupling {args.coupling}",
         flush=True,
     )
+    if args.coupling == "sparse" and DECISION_WINDOW_STEPS >= 250:
+        print(
+            "  WARNING: sparse at this window did not finish a single "
+            "forward+backward in 240 s on a 12 GB card, while gather took "
+            "274 ms. See data/results/gather_at_window_v783.json.",
+            flush=True,
+        )
 
     variants = {"both": [False, True], "raw": [False], "standardised": [True]}[args.only]
     out_dir = Path(args.out)
@@ -162,6 +181,7 @@ def main(argv=None) -> int:
             manifest_path=MANIFEST,
             progress=progress,
             standardise=standardise,
+            coupling=args.coupling,
         )
 
         for arm, scores in result.scores.items():

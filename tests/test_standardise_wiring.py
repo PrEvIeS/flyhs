@@ -146,3 +146,38 @@ def test_calibration_does_not_travel_in_the_state_dict():
     )
     assert policy.calibration is not None
     assert not any("calibration" in key for key in policy.state_dict())
+
+
+# --- the coupling mode must be selectable and recorded --------------------
+
+
+def test_coupling_mode_defaults_to_sparse_and_is_recorded():
+    """The default is unchanged on purpose, so earlier results stay comparable."""
+    result = run_experiment(_graph(), INPUTS, OUTPUTS, label="pilot", **BUDGET)
+
+    assert result.config["coupling"] == "sparse"
+
+
+def test_coupling_mode_can_be_selected_and_reaches_the_result():
+    """It decides whether a configuration is runnable, not merely how fast.
+
+    Measured on a 12 GB card at the 300-step window: gather runs in 274 ms and
+    961 MB, sparse does not finish a single forward+backward in 240 s. A result
+    file that did not say which mode produced it could not be compared with one
+    that used the other.
+    """
+    result = run_experiment(
+        _graph(), INPUTS, OUTPUTS, label="pilot", coupling="gather", **BUDGET
+    )
+
+    assert result.config["coupling"] == "gather"
+
+
+def test_make_policy_builds_the_requested_mode():
+    from flywire_rl.spiking import CouplingMode
+
+    policy = make_policy(
+        _graph(), INPUTS, OUTPUTS, seed=0, rank=2, steps=5, coupling="gather"
+    )
+
+    assert policy.substrate.coupling.mode is CouplingMode.GATHER

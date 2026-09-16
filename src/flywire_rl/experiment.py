@@ -37,7 +37,7 @@ from flywire_rl.controls import (
 from flywire_rl.minicard import MiniCard, board_control_opponent, greedy_face_opponent
 from flywire_rl.policy import SpikingPolicy, reference_observations
 from flywire_rl.ppo import train
-from flywire_rl.spiking import ShiuParams
+from flywire_rl.spiking import CouplingMode, ShiuParams
 
 VALID_LABELS = ("pilot", "confirmatory")
 #: Tonic sensory drive, identical across arms, scaling the encoder's output. It
@@ -169,6 +169,7 @@ def make_policy(
     device: str = "cpu",
     standardise: bool = False,
     n_reference_states: int = 64,
+    coupling: CouplingMode | str = CouplingMode.SPARSE,
 ) -> SpikingPolicy:
     """Wrap an arm as a policy. Dale signs are applied; the wiring stays frozen.
 
@@ -176,6 +177,14 @@ def make_policy(
     of reference states before any training, so every arm enters training with
     a zero-mean unit-variance readout. That is the amplitude control of
     fly-ky7.11: see ``SpikingPolicy.calibrate_readout`` for what it decides.
+
+    ``coupling`` selects how the frozen wiring is applied. The modes are
+    asserted to agree numerically in test_spiking, but they do not cost the
+    same: measured on a 12 GB card at the 300-step window, gather runs in
+    274 ms and 961 MB while sparse does not finish at all. The default is
+    unchanged so that existing results stay comparable; the choice is recorded
+    in the result config, because it decides whether a configuration is
+    runnable rather than merely how fast it is.
     """
     torch.manual_seed(seed)
     signed = arm.sign[arm.pre].astype(np.float32) * arm.weight
@@ -189,6 +198,7 @@ def make_policy(
         rank=rank,
         steps=steps,
         input_drive_mv=input_drive_mv,
+        mode=CouplingMode(coupling),
     ).to(device)
     # Attached rather than returned, so that every existing caller keeps the
     # bare policy it expects. Dropping these numbers was the defect: a readout
@@ -273,6 +283,7 @@ def run_seed(
     device: str = "cpu",
     input_drive_mv: float = INPUT_DRIVE_MV,
     standardise: bool = False,
+    coupling: CouplingMode | str = CouplingMode.SPARSE,
     calibration_sink: list[dict[str, float]] | None = None,
     truncation_sink: list[int] | None = None,
     **train_kwargs,
@@ -293,6 +304,7 @@ def run_seed(
         input_drive_mv,
         device,
         standardise=standardise,
+        coupling=coupling,
     )
     if calibration_sink is not None and policy.calibration is not None:
         calibration_sink.append(policy.calibration)
@@ -328,6 +340,7 @@ def run_experiment(
     manifest_path: Path | None = None,
     progress=None,
     standardise: bool = False,
+    coupling: CouplingMode | str = CouplingMode.SPARSE,
     **train_kwargs,
 ) -> ExperimentResult:
     """Run every arm across every seed and return the score matrices."""
@@ -356,6 +369,7 @@ def run_experiment(
                     steps,
                     device,
                     standardise=standardise,
+                    coupling=coupling,
                     calibration_sink=sink,
                     truncation_sink=cut_off,
                     **train_kwargs,
@@ -400,6 +414,7 @@ def run_experiment(
             "arm_seed": arm_seed,
             "swaps_per_edge": swaps_per_edge,
             "standardise": standardise,
+            "coupling": CouplingMode(coupling).value,
             "n_neurons": real.n,
             "n_edges": real.n_edges,
             "train_kwargs": {k: str(v) for k, v in train_kwargs.items()},

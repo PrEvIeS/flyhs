@@ -1,0 +1,124 @@
+{
+ "label": "gather_at_window",
+ "question": "Sparse could not reach 250 steps on 12 GB. Can gather, and at what batch?",
+ "device": "NVIDIA GeForce RTX 4070 Ti, 12282 MiB",
+ "rank": 8,
+ "repeats": 1,
+ "timeout_s": 240,
+ "generated": "2026-09-16T23:38:09+00:00",
+ "results": [
+  {
+   "mode": "gather",
+   "device": "cuda",
+   "batch": 1,
+   "ok": true,
+   "seconds_per_rollout": 0.18261249999704887,
+   "env_steps_per_second": 5.476076391354155,
+   "hours_per_500k_steps": 25.362847221812345,
+   "peak_memory_mb": 650.015232,
+   "steps": 200,
+   "rank": 8,
+   "wall_seconds": 2.3
+  },
+  {
+   "mode": "gather",
+   "device": "cuda",
+   "batch": 1,
+   "ok": true,
+   "seconds_per_rollout": 0.22870469999907073,
+   "env_steps_per_second": 4.372450588046783,
+   "hours_per_500k_steps": 31.7645416665376,
+   "peak_memory_mb": 806.412288,
+   "steps": 250,
+   "rank": 8,
+   "wall_seconds": 2.4
+  },
+  {
+   "mode": "gather",
+   "device": "cuda",
+   "batch": 1,
+   "ok": true,
+   "seconds_per_rollout": 0.274434700000711,
+   "env_steps_per_second": 3.6438540752951765,
+   "hours_per_500k_steps": 38.11593055565431,
+   "peak_memory_mb": 961.372672,
+   "steps": 300,
+   "rank": 8,
+   "wall_seconds": 2.5
+  },
+  {
+   "mode": "gather",
+   "device": "cuda",
+   "batch": 8,
+   "ok": true,
+   "seconds_per_rollout": 0.27945030000046245,
+   "env_steps_per_second": 28.627630745026078,
+   "hours_per_500k_steps": 4.851567708341362,
+   "peak_memory_mb": 7477.733376,
+   "steps": 300,
+   "rank": 8,
+   "wall_seconds": 2.7
+  },
+  {
+   "mode": "gather",
+   "device": "cuda",
+   "batch": 16,
+   "ok": true,
+   "seconds_per_rollout": 3.2847613000012643,
+   "env_steps_per_second": 4.870977991610483,
+   "hours_per_500k_steps": 28.513552951399866,
+   "peak_memory_mb": 14925.622784,
+   "steps": 300,
+   "rank": 8,
+   "wall_seconds": 9.1
+  },
+  {
+   "mode": "gather",
+   "device": "cuda",
+   "batch": 32,
+   "ok": false,
+   "error": "OutOfMemoryError: CUDA out of memory. Tried to allocate 38.00 MiB. GPU 0 has a total capacity of 11.99 GiB of which 0 bytes is free. Process 2112 has 17179869184.00 GiB memory in use. Process 3360 has",
+   "steps": 300,
+   "rank": 8,
+   "wall_seconds": 15.7
+  },
+  {
+   "mode": "gather",
+   "device": "cuda",
+   "batch": 64,
+   "ok": false,
+   "error": "OutOfMemoryError: CUDA out of memory. Tried to allocate 76.00 MiB. GPU 0 has a total capacity of 11.99 GiB of which 0 bytes is free. Process 2112 has 17179869184.00 GiB memory in use. Process 3360 has",
+   "steps": 300,
+   "rank": 8,
+   "wall_seconds": 14.7
+  },
+  {
+   "mode": "sparse",
+   "device": "cuda",
+   "batch": 1,
+   "ok": true,
+   "seconds_per_rollout": 1.2847990999980539,
+   "env_steps_per_second": 0.7783318030044656,
+   "hours_per_500k_steps": 178.44431944417414,
+   "peak_memory_mb": 4290.532352,
+   "steps": 200,
+   "rank": 8,
+   "wall_seconds": 4.8
+  }
+ ],
+ "method": "bench.benchmark_mode, one configuration per process, forward+backward through the full rollout, rank 8, one timed repeat after one warmup, hard 240 s timeout. The final sparse row repeats a point from window_cost_v783.json as a run-to-run control.",
+ "verdict": "Yes. The restored 30 ms window runs in gather at 274 ms and 961 MB, where sparse did not finish a single forward+backward in 240 s. There is no wall in the problem; the wall was the coupling mode.",
+ "reasoning": [
+  "gather at batch 1 is linear and cheap across the whole range: 182.6 ms and 650 MB at 200 steps, 228.7 ms and 806 MB at 250, 274.4 ms and 961 MB at 300. sparse could not complete 250 or 300 at all.",
+  "Batch is nearly free in time and linear in memory. gather at 300 steps costs 274.4 ms at batch 1 and 279.5 ms at batch 8 -- 8x the work for 2 percent more time -- while memory goes 961 MB to 7478 MB. The rollout is bound by kernel-launch latency across sequential steps, so a batch fills a card that is otherwise idle.",
+  "The ceiling at the full window is therefore batch 8. Batch 16 reported a peak of 14926 MB on a 12282 MiB card, which is only possible by spilling to host memory under WDDM, and it cost 3284.8 ms -- twelve times batch 8 for twice the work. Batch 32 and 64 raised OutOfMemoryError outright.",
+  "That spill is the likely explanation for the sparse cliff as well: not allocator fragmentation, which was ruled out by graph accounting, but the same silent fall back to host memory, which does not raise and does not finish.",
+  "The control reproduced: sparse at batch 1 and 200 steps measured 1284.8 ms against 1279.3 ms in the earlier grid, with an identical 4291 MB peak."
+ ],
+ "caveats": [
+  "hours_per_500k_steps is bench's own convention, (500000 / batch) * elapsed. It treats one rollout as batch env-steps, but in PPO the batch dimension is the minibatch rather than parallel environments, so converting these figures into training hours needs its own measurement.",
+  "The pre-registered train_kwargs in pilot_v783_a4.json use minibatch 32, and only 8 fits at the full window. Dropping to 8 is a deviation from the registered configuration -- small and documentable, but a deviation.",
+  "The modes are asserted to agree numerically in test_spiking (test_dense_and_sparse_match_the_gather_reference), which is what makes this a configuration choice rather than a protocol amendment. That equivalence should be re-confirmed on this host before a confirmatory run, not inherited."
+ ],
+ "consequence": "run_pilot now takes --coupling, defaulting to sparse so earlier results stay comparable, and records the choice in the result config. The restored window is reachable on this card today with --coupling gather at a minibatch of 8."
+}
