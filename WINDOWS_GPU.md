@@ -3,7 +3,7 @@
 The GPU is not reachable from any agent shell: the cloud container has no
 accelerator, and the desktop Cowork workspace is an isolated Linux VM with no
 GPU passthrough (no `nvidia-smi`, no `/dev/nvidia*`, 2 cores and 3 GB). The
-RTX 4070 lives on the Windows host, outside that sandbox. So this runs natively
+RTX 4070 Ti lives on the Windows host, outside that sandbox. So this runs natively
 on Windows.
 
 ## One-time setup
@@ -17,18 +17,43 @@ irm https://astral.sh/uv/install.ps1 | iex
 uv sync --python 3.13
 ```
 
-`pyproject.toml` pins `torch>=2.14`, which ships a CUDA build on Windows, so the
-lockfile resolves without a separate index. Check that it actually sees the card:
+On Windows the default PyPI wheel for `torch` is **CPU-only**, so `uv sync`
+alone leaves the card unused. Measured on this host: the sync installed
+`2.14.0+cpu` and `torch.cuda.is_available()` returned `False`. Install the CUDA
+build over it, pinning the same version the lockfile resolved:
 
 ```powershell
-uv run python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+uv pip install --force-reinstall torch==2.14.0 --index-url https://download.pytorch.org/whl/cu130
 ```
 
-If that prints `False`, the CPU wheel was resolved. Force the CUDA index:
+Then confirm the card is visible:
 
 ```powershell
-uv pip install --force-reinstall torch --index-url https://download.pytorch.org/whl/cu130
+uv run --no-sync python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 ```
+
+Observed here: `2.14.0+cu130 True NVIDIA GeForce RTX 4070 Ti`, compute
+capability (8, 9), driver 616.92.
+
+### `--no-sync` is not optional
+
+`uv run` syncs the environment against `uv.lock` before every command, and the
+lock pins plain `torch==2.14.0` — which on Windows resolves to the CPU wheel. A
+bare `uv run` therefore **uninstalls the CUDA build and reinstalls the CPU one**,
+then proceeds on CPU without raising anything. `uv sync --dry-run` shows exactly
+that:
+
+```
+- torch==2.14.0+cu130
++ torch==2.14.0
+```
+
+So every command below uses `uv run --no-sync`. Set `$env:UV_NO_SYNC = "1"` for
+the session if you would rather not have to remember it.
+
+The CUDA wheel is deliberately kept out of `pyproject.toml` and `uv.lock`: that
+lockfile is shared with the macOS dev host and the Linux confirmatory host per
+amendment A1, and a Windows-only index entry would rewrite it for all three.
 
 ## The data
 
@@ -46,7 +71,7 @@ foreach ($f in "connections.csv.gz","classification.csv.gz","neurons.csv.gz","ce
 ## The run
 
 ```powershell
-uv run python -m flywire_rl.run_pilot
+uv run --no-sync python -m flywire_rl.run_pilot
 ```
 
 That is the fly-ky7.11 comparison: the same pilot twice, once with the readout
@@ -68,7 +93,7 @@ steps, so every earlier timing estimate in the README multiplies by ten.
 Before committing to a long run, measure one seed:
 
 ```powershell
-uv run python -m flywire_rl.run_pilot --seeds 1 --steps 500 --eval-episodes 5 --only raw --tag probe
+uv run --no-sync python -m flywire_rl.run_pilot --seeds 1 --steps 500 --eval-episodes 5 --only raw --tag probe
 ```
 
 Two things are worth watching. Memory: the spec's 250 MB BPTT estimate assumed
