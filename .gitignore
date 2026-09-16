@@ -29,3 +29,10 @@ data/subset_*.npz
 # Editor / tooling state
 .idea/
 .codegraph/
+
+# Measurement logs are the transcript of a run; the JSON beside them is the
+# evidence. Keep the artifact, not the scrollback.
+data/results/*.log
+
+# OMC session tracking is machine-local, like the rest of .omc/state.
+.omc/sessions/
