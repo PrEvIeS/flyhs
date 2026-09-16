@@ -1,0 +1,26 @@
+{
+ "label": "mode_equivalence",
+ "question": "Do gather and sparse produce the same spikes on the real P1 subset at the restored window, or only on fixtures?",
+ "method": "Forward only under no_grad, 300 steps, batch 1, rank 8, identical tonic drive of 20.0 mV on the first 1042 columns, same seed for both couplings.",
+ "device": "NVIDIA GeForce RTX 4070 Ti",
+ "n_neurons": 15400,
+ "n_edges": 310867,
+ "rasters_identical": true,
+ "disagreeing_entries": 0,
+ "total_entries": 4620000,
+ "disagreement_fraction": 0.0,
+ "final_v_max_abs_difference_mv": 0.0,
+ "spikes_sparse": 44154,
+ "spikes_gather": 44154,
+ "neurons_ever_spiking_sparse": 12497,
+ "neurons_ever_spiking_gather": 12497,
+ "verdict": "The modes are interchangeable on the real subset at this window.",
+ "active_fraction": 0.8115,
+ "saturation_check": {
+  "measured_active_fraction": 0.8115,
+  "criterion_max_active_fraction": 0.25,
+  "source": "controls.calibrate_w_syn default, criterion 2: 'no more than max_active_fraction of the network fires, so the arm is transmitting rather than running away'",
+  "passes": false,
+  "note": "Incidental to the equivalence question but more consequential than it. At the production drive of 20.0 mV and the restored 300-step window, the real arm runs 3.2x over the project's own saturation ceiling. INPUT_DRIVE_MV = 20.0 was chosen at the broken 30-step window, where only the 1042 input neurons fired and nothing propagated; experiment.py already records it as a working value rather than a calibrated one. calibrate_w_syn raises when the criterion fails, and says a substrate that fails it must not be run past silently -- but it is never called from run_pilot or run_experiment, so it would be."
+ }
+}

@@ -1,0 +1,224 @@
+{
+ "label": "drive_at_window",
+ "question": "Which input drive satisfies the calibrate_w_syn criterion on the real subset at the restored 300-step window?",
+ "method": "controls.activity_profile, forward only, 300 steps, batch 2, published w_syn, per arm.",
+ "criterion": {
+  "max_active_fraction": 0.25,
+  "min_readout_live": 1,
+  "source": "controls.calibrate_w_syn defaults"
+ },
+ "device": "cuda",
+ "generated": "2026-09-16T23:43:27+00:00",
+ "results": [
+  {
+   "arm": "real",
+   "drive_mv": 0.2,
+   "rate_hz": 13.6861,
+   "active_fraction": 0.1142,
+   "readout_live": 9,
+   "readout_of": 44,
+   "readout_rate_hz": 12.8788,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 0.5,
+   "rate_hz": 23.368,
+   "active_fraction": 0.1574,
+   "readout_live": 13,
+   "readout_of": 44,
+   "readout_rate_hz": 25.0,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 1.0,
+   "rate_hz": 30.3788,
+   "active_fraction": 0.1556,
+   "readout_live": 14,
+   "readout_of": 44,
+   "readout_rate_hz": 25.0,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 2.0,
+   "rate_hz": 33.3485,
+   "active_fraction": 0.1653,
+   "readout_live": 15,
+   "readout_of": 44,
+   "readout_rate_hz": 28.7879,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 5.0,
+   "rate_hz": 36.0346,
+   "active_fraction": 0.1719,
+   "readout_live": 15,
+   "readout_of": 44,
+   "readout_rate_hz": 28.7879,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 10.0,
+   "rate_hz": 38.6364,
+   "active_fraction": 0.1762,
+   "readout_live": 15,
+   "readout_of": 44,
+   "readout_rate_hz": 31.8182,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 20.0,
+   "rate_hz": 38.6364,
+   "active_fraction": 0.1762,
+   "readout_live": 15,
+   "readout_of": 44,
+   "readout_rate_hz": 31.8182,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.2,
+   "rate_hz": 12.7078,
+   "active_fraction": 0.0986,
+   "readout_live": 3,
+   "readout_of": 44,
+   "readout_rate_hz": 2.2727,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.5,
+   "rate_hz": 21.3139,
+   "active_fraction": 0.1314,
+   "readout_live": 5,
+   "readout_of": 44,
+   "readout_rate_hz": 3.7879,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 1.0,
+   "rate_hz": 29.29,
+   "active_fraction": 0.1518,
+   "readout_live": 6,
+   "readout_of": 44,
+   "readout_rate_hz": 6.0606,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 2.0,
+   "rate_hz": 33.4675,
+   "active_fraction": 0.1859,
+   "readout_live": 9,
+   "readout_of": 44,
+   "readout_rate_hz": 9.0909,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 5.0,
+   "rate_hz": 36.6797,
+   "active_fraction": 0.2017,
+   "readout_live": 9,
+   "readout_of": 44,
+   "readout_rate_hz": 9.8485,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 10.0,
+   "rate_hz": 39.4307,
+   "active_fraction": 0.2104,
+   "readout_live": 10,
+   "readout_of": 44,
+   "readout_rate_hz": 11.3636,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 20.0,
+   "rate_hz": 39.4307,
+   "active_fraction": 0.2104,
+   "readout_live": 10,
+   "readout_of": 44,
+   "readout_rate_hz": 11.3636,
+   "passes_criterion": true
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.2,
+   "rate_hz": 15.4502,
+   "active_fraction": 0.1697,
+   "readout_live": 6,
+   "readout_of": 44,
+   "readout_rate_hz": 4.5455,
+   "passes_criterion": true
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.5,
+   "rate_hz": 31.3247,
+   "active_fraction": 0.3655,
+   "readout_live": 12,
+   "readout_of": 44,
+   "readout_rate_hz": 12.8788,
+   "passes_criterion": false
+  },
+  {
+   "arm": "random",
+   "drive_mv": 1.0,
+   "rate_hz": 43.7857,
+   "active_fraction": 0.4698,
+   "readout_live": 16,
+   "readout_of": 44,
+   "readout_rate_hz": 18.9394,
+   "passes_criterion": false
+  },
+  {
+   "arm": "random",
+   "drive_mv": 2.0,
+   "rate_hz": 50.7511,
+   "active_fraction": 0.5426,
+   "readout_live": 22,
+   "readout_of": 44,
+   "readout_rate_hz": 22.7273,
+   "passes_criterion": false
+  },
+  {
+   "arm": "random",
+   "drive_mv": 5.0,
+   "rate_hz": 55.6385,
+   "active_fraction": 0.5851,
+   "readout_live": 24,
+   "readout_of": 44,
+   "readout_rate_hz": 26.5152,
+   "passes_criterion": false
+  },
+  {
+   "arm": "random",
+   "drive_mv": 10.0,
+   "rate_hz": 59.0866,
+   "active_fraction": 0.6037,
+   "readout_live": 25,
+   "readout_of": 44,
+   "readout_rate_hz": 28.0303,
+   "passes_criterion": false
+  },
+  {
+   "arm": "random",
+   "drive_mv": 20.0,
+   "rate_hz": 59.0866,
+   "active_fraction": 0.6037,
+   "readout_live": 25,
+   "readout_of": 44,
+   "readout_rate_hz": 28.0303,
+   "passes_criterion": false
+  }
+ ]
+}
