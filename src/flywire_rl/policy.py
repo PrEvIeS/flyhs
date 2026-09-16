@@ -263,6 +263,13 @@ class SpikingPolicy(nn.Module):
         self.register_buffer("readout_scale", torch.ones(n_out))
         self.register_buffer("standardised", torch.zeros((), dtype=torch.bool))
 
+        #: What the last :meth:`calibrate_readout` measured, or ``None``.
+        #:
+        #: Deliberately a plain attribute and not a buffer: it is a record of
+        #: the calibration for the result file, not state the model computes
+        #: with, and it must not travel in ``state_dict``.
+        self.calibration: dict[str, float] | None = None
+
     @property
     def device(self) -> torch.device:
         return self.encoder.weight.device
@@ -375,7 +382,7 @@ class SpikingPolicy(nn.Module):
         self.readout_scale.copy_(scale)
         self.standardised.fill_(True)
 
-        return {
+        self.calibration = {
             "n_states": float(reference.shape[0]),
             "n_units": float(mean.numel()),
             "dead_units": float(int(dead.sum())),
@@ -383,6 +390,7 @@ class SpikingPolicy(nn.Module):
             "median_sd": float(std.median()),
             "feature_rms": float(features.pow(2).mean().sqrt()),
         }
+        return self.calibration
 
     def act(self, game) -> tuple[Action, Tensor, Tensor]:
         """Sample one legal action, returning it with its log-prob and value."""
