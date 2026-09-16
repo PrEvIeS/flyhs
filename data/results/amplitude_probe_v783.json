@@ -1,0 +1,71 @@
+{
+  "label": "amplitude_probe",
+  "issue": "fly-ky7.11",
+  "note": "Pre-learning readout statistics at HEAD (7dd3bd6, Shiu absolute scale), 16 shared reference states, input_drive_mv=20.0 (the INPUT_GAIN used by commit 1386b35 which produced amendment A4 and pilot_v783_a4).",
+  "a4_recorded": {
+    "real": {
+      "varying": 1.0,
+      "median_sd": 70.1,
+      "rms": 1509.9
+    },
+    "shuffled": {
+      "varying": 1.0,
+      "median_sd": 13.72,
+      "rms": 838.7
+    },
+    "random": {
+      "varying": 1.0,
+      "median_sd": 4.88,
+      "rms": 242.2
+    }
+  },
+  "measured_at_head": {
+    "real": {
+      "live_units": 21,
+      "of": 44,
+      "median_sd_live": 0.0408,
+      "max_sd": 0.2315,
+      "rms": 52.0
+    },
+    "shuffled": {
+      "live_units": 22,
+      "of": 44,
+      "median_sd_live": 0.0067,
+      "max_sd": 0.039,
+      "rms": 52.0
+    },
+    "random": {
+      "live_units": 29,
+      "of": 44,
+      "median_sd_live": 0.0092,
+      "max_sd": 0.0499,
+      "rms": 51.99
+    }
+  },
+  "at_default_drive_0.06": {
+    "all_arms": {
+      "live_units": 0,
+      "of": 44,
+      "median_sd": 0.0,
+      "rms": 52.0
+    }
+  },
+  "drive_sweep_real_arm": {
+    "0.06": 0.0,
+    "0.6": 0.0,
+    "6.0": 0.0,
+    "20.0": 0.0,
+    "60.0": 0.0,
+    "200.0": 0.0,
+    "_units": "median sd over all 44 output units; zero throughout because >50% of units never leave v_rest"
+  },
+  "standardisation_verified": true,
+  "findings": [
+    "At the committed INPUT_DRIVE_MV=0.06 every one of the 44 output units is constant at v_rest=-52mV in all three arms: the readout carries no game-state information at all.",
+    "Raising the drive 3300x (to 200 mV) does not fix it; >50% of output units never leave rest. This is the sparsity cause amendment A4 diagnosed, not a gain problem.",
+    "At the old INPUT_GAIN=20.0 the live-unit signal is ~1700x weaker than A4 recorded (0.041 vs 70.1) and only ~half the units vary, versus all of them in A4.",
+    "The arm ordering A4 recorded (real>shuffled>random) does not reproduce at HEAD: shuffled and random have swapped (real 0.0408 > random 0.0092 > shuffled 0.0067).",
+    "Consequence for fly-ky7.11: the amplitude control is implemented and verified, but no verdict can be drawn at HEAD, because the pre-learning amplitude ordering it exists to neutralise is itself absent."
+  ],
+  "generated": "2026-09-16"
+}

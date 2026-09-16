@@ -253,11 +253,21 @@ class SpikingPolicy(nn.Module):
         self.head_target = nn.Linear(n_out, ActionCodec.N_TARGET)
         self.head_value = nn.Linear(n_out, 1)
 
+        # Amplitude control (fly-ky7.11). Frozen affine statistics applied to
+        # the readout before the heads; buffers, not parameters, so they are
+        # saved with the policy but never receive a gradient. ``standardised``
+        # is a buffer too, so a reloaded policy cannot silently forget that it
+        # was calibrated. Disabled until calibrate_readout is called, which
+        # keeps the pre-amendment arms bit-identical.
+        self.register_buffer("readout_mean", torch.zeros(n_out))
+        self.register_buffer("readout_scale", torch.ones(n_out))
+        self.register_buffer("standardised", torch.zeros((), dtype=torch.bool))
+
     @property
     def device(self) -> torch.device:
         return self.encoder.weight.device
 
-    def features(self, observation: Tensor) -> Tensor:
+    def raw_features(self, observation: Tensor) -> Tensor:
         """Run the substrate and return each output neuron's mean membrane, in mV.
 
         Amendment A4 reached for the membrane because a spike-count readout left
@@ -281,6 +291,98 @@ class SpikingPolicy(nn.Module):
         result = self.substrate.rollout(drive.unsqueeze(0).expand(self.steps, -1, -1))
 
         return result.membrane.index_select(1, self.output_indices)
+
+    def features(self, observation: Tensor) -> Tensor:
+        """The readout the heads actually consume.
+
+        Identical to :meth:`raw_features` until :meth:`calibrate_readout` has
+        run; afterwards each output unit is shifted and scaled by the frozen
+        statistics measured there. See that method for why this exists.
+        """
+        features = self.raw_features(observation)
+        if bool(self.standardised):
+            features = (features - self.readout_mean) / self.readout_scale
+        return features
+
+    @torch.no_grad()
+    def calibrate_readout(
+        self,
+        reference: Tensor,
+        eps: float = 1e-6,
+        chunk: int = 32,
+    ) -> dict[str, float]:
+        """Measure per-unit readout statistics on a fixed reference set (A4/fly-ky7.11).
+
+        The pilot's arm ordering (real > shuffled > random) reproduced the
+        *pre-learning* ordering of readout amplitude exactly -- median s.d.
+        70.1 / 13.7 / 4.88 and feature RMS 1510 / 839 / 242 in amendment A4. So
+        the pilot may be reporting "the real connectome delivers more signal to
+        the readout", not "the real connectome computes better". Those are
+        different claims and no P4 control separates them.
+
+        Standardising each arm's readout to zero mean and unit variance removes
+        the amplitude difference while leaving the *pattern* across units
+        intact. Re-running then answers the question: if the ordering survives
+        it is computational, and if it vanishes it was transmission.
+
+        The reference set must be the same states for every arm -- see
+        :func:`reference_observations`, which is policy-independent for exactly
+        that reason. Each arm then gets its own statistics measured on those
+        shared states.
+
+        The statistics are computed once and frozen. A running or per-batch
+        normaliser would keep adapting during training and so would smuggle a
+        second, arm-dependent learning signal into the comparison it is meant
+        to neutralise.
+        """
+        if reference.ndim != 2:
+            raise ValueError(
+                f"reference must be (n_states, obs_dim), got shape {tuple(reference.shape)}"
+            )
+        if reference.shape[0] < 2:
+            raise ValueError(
+                "a variance needs at least 2 reference states, "
+                f"got {reference.shape[0]}"
+            )
+
+        was = bool(self.standardised)
+        self.standardised.fill_(False)  # measure the raw readout, not a standardised one
+        try:
+            batches = [
+                self.raw_features(reference[i : i + chunk])
+                for i in range(0, reference.shape[0], chunk)
+            ]
+            features = torch.cat(batches, dim=0)
+        except BaseException:
+            self.standardised.fill_(was)
+            raise
+
+        # Accumulate in float64. The membrane sits around v_rest = -52 mV, so a
+        # float32 mean of values near -52 loses most of its significant digits
+        # to cancellation, and a unit with a small s.d. then has that error
+        # divided by the small scale. The statistics are computed once, so the
+        # wider accumulator is free.
+        mean = features.double().mean(dim=0).to(features.dtype)
+        std = features.double().std(dim=0, unbiased=False).to(features.dtype)
+
+        # A dead unit -- constant across every reference state -- has no scale
+        # to divide by. Leaving it at 1.0 passes its (now zero) deviation
+        # through untouched instead of amplifying float noise by 1/eps.
+        dead = std <= eps
+        scale = torch.where(dead, torch.ones_like(std), std)
+
+        self.readout_mean.copy_(mean)
+        self.readout_scale.copy_(scale)
+        self.standardised.fill_(True)
+
+        return {
+            "n_states": float(reference.shape[0]),
+            "n_units": float(mean.numel()),
+            "dead_units": float(int(dead.sum())),
+            "mean_abs_mean": float(mean.abs().mean()),
+            "median_sd": float(std.median()),
+            "feature_rms": float(features.pow(2).mean().sqrt()),
+        }
 
     def act(self, game) -> tuple[Action, Tensor, Tensor]:
         """Sample one legal action, returning it with its log-prob and value."""
@@ -389,3 +491,51 @@ class SpikingPolicy(nn.Module):
             values,
             ent_kind + ent_source + ent_target,
         )
+
+
+def reference_observations(
+    n_states: int = 64,
+    seed: int = 20260916,
+    archetype: str = "aggro",
+    max_turns: int = 30,
+) -> Tensor:
+    """A fixed set of game states for calibrating the readout (fly-ky7.11).
+
+    Deliberately **policy-independent**: states are reached by sampling uniformly
+    from the legal set with a dedicated RNG, never by asking a network what to
+    do. If the reference states were drawn from each arm's own behaviour the
+    arms would be standardised on different distributions, and the amplitude
+    control would compare readouts that had been centred on different regions
+    of the state space -- reintroducing the very confound it exists to remove.
+
+    Positions are collected one per game across ``n_states`` distinct seeds, at
+    a random legal depth, so the set spans openings, midgame and near-terminal
+    boards rather than ``n_states`` correlated steps of a single match.
+    """
+    import random
+
+    from flywire_rl.minicard import MiniCard
+
+    if n_states < 2:
+        raise ValueError(f"a variance needs at least 2 reference states, got {n_states}")
+
+    rng = random.Random(seed)
+    rows: list[np.ndarray] = []
+
+    for i in range(n_states):
+        game = MiniCard(
+            seed=seed + 7919 * i, archetypes=(archetype, archetype), max_turns=max_turns
+        )
+        game.reset()
+        for _ in range(rng.randrange(0, 24)):
+            if game.is_over:
+                break
+            legal = game.legal_actions()
+            if not legal:
+                break
+            game.step(rng.choice(legal))
+        rows.append(
+            encode_observation(game.observe(game.to_move, hide_opponent_hand=True))
+        )
+
+    return torch.from_numpy(np.stack(rows))

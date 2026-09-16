@@ -33,7 +33,7 @@ from flywire_rl.controls import (
     shuffled_control,
 )
 from flywire_rl.minicard import MiniCard, board_control_opponent, greedy_face_opponent
-from flywire_rl.policy import SpikingPolicy
+from flywire_rl.policy import SpikingPolicy, reference_observations
 from flywire_rl.ppo import train
 
 VALID_LABELS = ("pilot", "confirmatory")
@@ -102,11 +102,19 @@ def make_policy(
     steps: int = 30,
     input_drive_mv: float = INPUT_DRIVE_MV,
     device: str = "cpu",
+    standardise: bool = False,
+    n_reference_states: int = 64,
 ) -> SpikingPolicy:
-    """Wrap an arm as a policy. Dale signs are applied; the wiring stays frozen."""
+    """Wrap an arm as a policy. Dale signs are applied; the wiring stays frozen.
+
+    With ``standardise=True`` the readout is calibrated on a fixed, shared set
+    of reference states before any training, so every arm enters training with
+    a zero-mean unit-variance readout. That is the amplitude control of
+    fly-ky7.11: see ``SpikingPolicy.calibrate_readout`` for what it decides.
+    """
     torch.manual_seed(seed)
     signed = arm.sign[arm.pre].astype(np.float32) * arm.weight
-    return SpikingPolicy(
+    policy = SpikingPolicy(
         n_neurons=arm.n,
         pre_idx=torch.from_numpy(np.ascontiguousarray(arm.pre)),
         post_idx=torch.from_numpy(np.ascontiguousarray(arm.post)),
@@ -117,6 +125,11 @@ def make_policy(
         steps=steps,
         input_drive_mv=input_drive_mv,
     ).to(device)
+    if standardise:
+        policy.calibrate_readout(
+            reference_observations(n_reference_states).to(device)
+        )
+    return policy
 
 
 def _make_game(seed: int, archetype: str = "aggro", max_turns: int = 30):
@@ -174,11 +187,20 @@ def run_seed(
     steps: int = 30,
     device: str = "cpu",
     input_drive_mv: float = INPUT_DRIVE_MV,
+    standardise: bool = False,
     **train_kwargs,
 ) -> np.ndarray:
     """Train one policy on one arm with one seed, then evaluate it."""
     policy = make_policy(
-        arm, input_indices, output_indices, seed, rank, steps, input_drive_mv, device
+        arm,
+        input_indices,
+        output_indices,
+        seed,
+        rank,
+        steps,
+        input_drive_mv,
+        device,
+        standardise=standardise,
     )
     train(
         policy,
@@ -206,6 +228,7 @@ def run_experiment(
     swaps_per_edge: int = 100,
     manifest_path: Path | None = None,
     progress=None,
+    standardise: bool = False,
     **train_kwargs,
 ) -> ExperimentResult:
     """Run every arm across every seed and return the score matrices."""
@@ -228,6 +251,7 @@ def run_experiment(
                     rank,
                     steps,
                     device,
+                    standardise=standardise,
                     **train_kwargs,
                 )
             )
@@ -256,6 +280,7 @@ def run_experiment(
             "decision_window_steps": steps,
             "arm_seed": arm_seed,
             "swaps_per_edge": swaps_per_edge,
+            "standardise": standardise,
             "n_neurons": real.n,
             "n_edges": real.n_edges,
             "train_kwargs": {k: str(v) for k, v in train_kwargs.items()},
