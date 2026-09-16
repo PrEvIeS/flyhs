@@ -1,0 +1,297 @@
+{
+ "label": "drive_at_window_fine",
+ "question": "What is the LARGEST drive at which all three arms satisfy the criterion at the 300-step window? More drive is more signal, so 0.2 being the smallest value tried is not a reason to pick it.",
+ "method": "controls.activity_profile, forward only, 300 steps, batch 2, published w_syn, per arm.",
+ "criterion": {
+  "max_active_fraction": 0.25,
+  "min_readout_live": 1,
+  "source": "controls.calibrate_w_syn defaults"
+ },
+ "device": "cuda",
+ "generated": "2026-09-16T23:46:25+00:00",
+ "results": [
+  {
+   "arm": "real",
+   "drive_mv": 0.05,
+   "rate_hz": 2.4697,
+   "active_fraction": 0.0741,
+   "readout_live": 1,
+   "readout_of": 44,
+   "readout_rate_hz": 0.7576,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 0.1,
+   "rate_hz": 6.5216,
+   "active_fraction": 0.0894,
+   "readout_live": 7,
+   "readout_of": 44,
+   "readout_rate_hz": 6.8182,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 0.15,
+   "rate_hz": 10.5628,
+   "active_fraction": 0.1039,
+   "readout_live": 9,
+   "readout_of": 44,
+   "readout_rate_hz": 11.3636,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 0.2,
+   "rate_hz": 13.6861,
+   "active_fraction": 0.1142,
+   "readout_live": 9,
+   "readout_of": 44,
+   "readout_rate_hz": 12.8788,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 0.25,
+   "rate_hz": 16.6732,
+   "active_fraction": 0.1255,
+   "readout_live": 10,
+   "readout_of": 44,
+   "readout_rate_hz": 15.1515,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 0.3,
+   "rate_hz": 17.6991,
+   "active_fraction": 0.136,
+   "readout_live": 11,
+   "readout_of": 44,
+   "readout_rate_hz": 19.697,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 0.35,
+   "rate_hz": 20.3095,
+   "active_fraction": 0.1448,
+   "readout_live": 11,
+   "readout_of": 44,
+   "readout_rate_hz": 18.9394,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 0.4,
+   "rate_hz": 22.9113,
+   "active_fraction": 0.1511,
+   "readout_live": 12,
+   "readout_of": 44,
+   "readout_rate_hz": 21.9697,
+   "passes_criterion": true
+  },
+  {
+   "arm": "real",
+   "drive_mv": 0.45,
+   "rate_hz": 23.1104,
+   "active_fraction": 0.1556,
+   "readout_live": 13,
+   "readout_of": 44,
+   "readout_rate_hz": 21.2121,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.05,
+   "rate_hz": 2.3095,
+   "active_fraction": 0.0693,
+   "readout_live": 0,
+   "readout_of": 44,
+   "readout_rate_hz": 0.0,
+   "passes_criterion": false
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.1,
+   "rate_hz": 6.9286,
+   "active_fraction": 0.0766,
+   "readout_live": 0,
+   "readout_of": 44,
+   "readout_rate_hz": 0.0,
+   "passes_criterion": false
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.15,
+   "rate_hz": 9.9654,
+   "active_fraction": 0.0895,
+   "readout_live": 0,
+   "readout_of": 44,
+   "readout_rate_hz": 0.0,
+   "passes_criterion": false
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.2,
+   "rate_hz": 12.7078,
+   "active_fraction": 0.0986,
+   "readout_live": 3,
+   "readout_of": 44,
+   "readout_rate_hz": 2.2727,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.25,
+   "rate_hz": 15.3355,
+   "active_fraction": 0.1066,
+   "readout_live": 3,
+   "readout_of": 44,
+   "readout_rate_hz": 2.2727,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.3,
+   "rate_hz": 15.9805,
+   "active_fraction": 0.1155,
+   "readout_live": 4,
+   "readout_of": 44,
+   "readout_rate_hz": 3.0303,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.35,
+   "rate_hz": 18.3528,
+   "active_fraction": 0.1204,
+   "readout_live": 4,
+   "readout_of": 44,
+   "readout_rate_hz": 3.0303,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.4,
+   "rate_hz": 20.8442,
+   "active_fraction": 0.1242,
+   "readout_live": 5,
+   "readout_of": 44,
+   "readout_rate_hz": 3.7879,
+   "passes_criterion": true
+  },
+  {
+   "arm": "shuffled",
+   "drive_mv": 0.45,
+   "rate_hz": 21.013,
+   "active_fraction": 0.1269,
+   "readout_live": 3,
+   "readout_of": 44,
+   "readout_rate_hz": 2.2727,
+   "passes_criterion": true
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.05,
+   "rate_hz": 2.3182,
+   "active_fraction": 0.0695,
+   "readout_live": 0,
+   "readout_of": 44,
+   "readout_rate_hz": 0.0,
+   "passes_criterion": false
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.1,
+   "rate_hz": 7.4848,
+   "active_fraction": 0.0892,
+   "readout_live": 1,
+   "readout_of": 44,
+   "readout_rate_hz": 0.7576,
+   "passes_criterion": true
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.15,
+   "rate_hz": 11.3355,
+   "active_fraction": 0.1258,
+   "readout_live": 2,
+   "readout_of": 44,
+   "readout_rate_hz": 1.5152,
+   "passes_criterion": true
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.2,
+   "rate_hz": 15.4502,
+   "active_fraction": 0.1697,
+   "readout_live": 6,
+   "readout_of": 44,
+   "readout_rate_hz": 4.5455,
+   "passes_criterion": true
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.25,
+   "rate_hz": 19.4632,
+   "active_fraction": 0.2134,
+   "readout_live": 9,
+   "readout_of": 44,
+   "readout_rate_hz": 6.8182,
+   "passes_criterion": true
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.3,
+   "rate_hz": 22.2727,
+   "active_fraction": 0.2555,
+   "readout_live": 10,
+   "readout_of": 44,
+   "readout_rate_hz": 7.5758,
+   "passes_criterion": false
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.35,
+   "rate_hz": 24.9675,
+   "active_fraction": 0.2839,
+   "readout_live": 10,
+   "readout_of": 44,
+   "readout_rate_hz": 7.5758,
+   "passes_criterion": false
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.4,
+   "rate_hz": 28.7879,
+   "active_fraction": 0.3176,
+   "readout_live": 10,
+   "readout_of": 44,
+   "readout_rate_hz": 9.0909,
+   "passes_criterion": false
+  },
+  {
+   "arm": "random",
+   "drive_mv": 0.45,
+   "rate_hz": 29.6472,
+   "active_fraction": 0.3349,
+   "readout_live": 11,
+   "readout_of": 44,
+   "readout_rate_hz": 11.3636,
+   "passes_criterion": false
+  }
+ ],
+ "verdict": "The criterion admits a narrow two-sided window, drive in [0.20, 0.25], and 0.25 is the largest value that passes on all three arms. The production value of 20.0 is eighty times that.",
+ "reasoning": [
+  "The window is squeezed from both sides by different clauses of the same criterion. Below 0.20 the shuffled arm's readout is dead -- readout_live is 0 of 44 at 0.05, 0.10 and 0.15 -- so criterion 1 fails. Above 0.25 the random arm's active fraction passes 0.25 -- 0.2555 at drive 0.30 -- so criterion 2 fails.",
+  "At 0.25 all three pass with room on neither side: active fraction 0.1255 real, 0.1066 shuffled, 0.2134 random; readout live 10, 3 and 9 of 44.",
+  "The real arm is never the binding constraint. It passes at every drive swept here and at every drive in the coarse sweep up to 20.0. What the criterion actually constrains is the two controls, in opposite directions.",
+  "The narrowness is a result in itself. A criterion that is satisfiable only on a 0.05-wide interval is nearly infeasible, and a drive chosen anywhere outside it puts one arm in a different regime from the others."
+ ],
+ "caveats": [
+  "Forward only, untrained policy, batch 2, published w_syn. This describes the regime a run starts in, which is what the criterion is about, not where training takes it.",
+  "The grid is 0.05 wide, so the true boundaries lie somewhere in (0.15, 0.20] and [0.25, 0.30). A finer search would narrow them but cannot widen the window.",
+  "calibrate_w_syn was written to solve this by sweeping w_syn at a fixed drive, not by sweeping the drive. Doing it the other way round, as here, may be the wrong knob -- but it is the knob the protocol currently fixes by hand."
+ ],
+ "consequence": "If the criterion stands, the drive has to move from 20.0 to about 0.25 and that is a pre-registered amendment. If it does not stand, the reason has to be written down, because the same criterion is what the codebase cites for having abandoned the branching-ratio calibration."
+}

@@ -68,10 +68,40 @@ foreach ($f in "connections.csv.gz","classification.csv.gz","neurons.csv.gz","ce
 }
 ```
 
+## Run it in gather, not in the default
+
+This is the single thing to know before starting a run on this card. Measured
+on the 4070 Ti at the restored 300-step window, forward+backward, batch 1:
+
+| coupling | 200 steps | 250 steps | 300 steps |
+|---|---|---|---|
+| `sparse` (the default) | 1279 ms, 4291 MB | did not finish in 240 s | did not finish in 240 s |
+| `gather` | 183 ms, 650 MB | 229 ms, 806 MB | **274 ms, 961 MB** |
+
+`SpikingPolicy` has always defaulted to `CouplingMode.SPARSE`, and until now
+nothing above it could change that, so the pilot could only ever run the mode
+that cannot reach the window. The modes are not approximations of each other:
+on the real subset at 300 steps they produce byte-identical rasters -- 4,620,000
+entries, zero disagreements, final membrane potential differing by exactly 0.0
+mV (`data/results/mode_equivalence_v783.json`). The default is left alone so
+earlier results stay comparable; pass the flag.
+
+```powershell
+uv run --no-sync python -m flywire_rl.run_pilot --coupling gather
+```
+
+Batch is nearly free in time and linear in memory: at 300 steps, gather costs
+274 ms at batch 1 and 280 ms at batch 8, because the rollout is bound by
+kernel-launch latency across sequential steps rather than by arithmetic. Batch
+8 is the ceiling on 12 GB. Batch 16 reports a 14,926 MB peak on a 12,282 MiB
+card -- a spill to host memory under WDDM, which does not raise and costs 12x
+the time -- and batch 32 raises `OutOfMemoryError`. Note that the
+pre-registered minibatch is 32, so running at 8 is a documented deviation.
+
 ## The run
 
 ```powershell
-uv run --no-sync python -m flywire_rl.run_pilot
+uv run --no-sync python -m flywire_rl.run_pilot --coupling gather
 ```
 
 That is the fly-ky7.11 comparison: the same pilot twice, once with the readout
@@ -96,10 +126,23 @@ Before committing to a long run, measure one seed:
 uv run --no-sync python -m flywire_rl.run_pilot --seeds 1 --steps 500 --eval-episodes 5 --only raw --tag probe
 ```
 
-Two things are worth watching. Memory: the spec's 250 MB BPTT estimate assumed
-8k neurons and 30 steps; at 15,400 neurons, batch 64 and 300 steps it is roughly
-4.8 GB, which fits 12 GB but with far less headroom than the spec assumed. And
-throughput: if a seed takes longer than about fifteen minutes, the
+Watch throughput, and check the drive. On the memory question the guesswork is
+over: the numbers above replace the spec's 250 MB BPTT estimate, which assumed
+8k neurons and 30 steps.
+
+There is one open problem the probe will not show you. At the production
+`INPUT_DRIVE_MV = 20.0` and the restored window, the three arms are not in the
+same dynamical regime: active fraction 0.1762 for real, 0.2104 for shuffled and
+0.6037 for random, against the 0.25 ceiling `controls.calibrate_w_syn` uses to
+decide an arm is transmitting rather than running away. The random control is
+2.4x over it. That is a confound, since the arms are supposed to differ in their
+edges and in nothing else, and nothing in the run path checks it --
+`calibrate_w_syn` raises on exactly this and is never called. See
+`data/results/drive_at_window_v783.json`. The drive was chosen at the broken
+30-step window, where nothing propagated past the input population and so
+nothing downstream could run away.
+
+On throughput: if a seed takes longer than about fifteen minutes, the
 pre-registered confirmatory budget (5e5 steps x 10 seeds x 3 arms) will not fit
 in any reasonable wall clock, and the budget has to come from seeds, per-seed
 steps, subset size or batch — not from dt, which
