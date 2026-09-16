@@ -14,6 +14,8 @@ and raises nothing -- the interface would simply be the wrong neurons.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -53,7 +55,7 @@ def fake_tables(monkeypatch, tmp_path):
         calls.append("select_subset")
         return Subset(seed_ids=set(IDS), interface_ids=set(), edges=edges)
 
-    def dale_signs(neuron_ids, nt_by_neuron):
+    def dale_signs(neuron_ids, nt_by_neuron, **kwargs):
         calls.append("dale_signs")
         # One sign per neuron, in the order the caller passed the ids.
         return np.array([1 if int(r) % 200 else -1 for r in neuron_ids], dtype=np.int8)
@@ -163,3 +165,93 @@ def test_pick_device_honours_an_explicit_request():
     assert run_pilot.pick_device("cpu") == "cpu"
     assert run_pilot.pick_device("cuda") == "cuda"
     assert run_pilot.pick_device("auto") in {"cpu", "cuda", "mps"}
+
+
+# --- an unsigned neuron must not pass for a modulatory one ----------------
+
+
+def _nt(pairs) -> pd.Series:
+    return pd.Series(
+        [v for _, v in pairs], index=[k for k, _ in pairs], name="nt_type"
+    )
+
+
+def test_known_transmitters_keep_their_signs():
+    from flywire_rl.connectome import dale_signs
+
+    signs = dale_signs(
+        [1, 2, 3, 4], _nt([(1, "ACH"), (2, "GABA"), (3, "GLUT"), (4, "DA")])
+    )
+
+    # DA is genuinely 0: modulatory, not missing.
+    assert list(signs) == [1, -1, -1, 0]
+
+
+def test_the_check_is_off_unless_a_caller_asks_for_it():
+    """The mapping's documented behaviour is unchanged: unrecognised is 0.
+
+    Strictness belongs on the path that produces evidence, which passes the
+    tolerance explicitly, not on every caller inspecting a fragment.
+    """
+    from flywire_rl.connectome import dale_signs
+
+    signs = dale_signs([1, 2], _nt([(1, "ACH"), (2, "UNKNOWN")]))
+
+    assert list(signs) == [1, 0]
+
+
+def test_a_few_unsigned_neurons_are_tolerated():
+    """A release can leave a handful unpredicted; refusing on one is useless."""
+    from flywire_rl.connectome import MAX_UNSIGNED_FRACTION, dale_signs
+
+    ids = list(range(200))
+    table = _nt([(i, "ACH") for i in ids if i != 0])  # one absent, i.e. 0.5%
+
+    signs = dale_signs(ids, table, max_unsigned_fraction=MAX_UNSIGNED_FRACTION)
+    assert signs[0] == 0
+    assert set(signs[1:]) == {1}
+
+
+def test_a_join_gap_above_tolerance_raises():
+    """The failure it guards is invisible: sign 0 mutes every outgoing edge."""
+    from flywire_rl.connectome import MAX_UNSIGNED_FRACTION, ManifestMismatch, dale_signs
+
+    ids = list(range(100))
+    table = _nt([(i, "ACH") for i in ids[:90]])  # ten percent absent
+
+    with pytest.raises(ManifestMismatch, match="no usable transmitter"):
+        dale_signs(ids, table, max_unsigned_fraction=MAX_UNSIGNED_FRACTION)
+
+
+def test_an_unknown_transmitter_category_is_reported_by_name():
+    from flywire_rl.connectome import MAX_UNSIGNED_FRACTION, ManifestMismatch, dale_signs
+
+    ids = list(range(100))
+    table = _nt([(i, "ACH" if i < 90 else "HISTAMINE") for i in ids])
+
+    with pytest.raises(ManifestMismatch) as caught:
+        dale_signs(ids, table, max_unsigned_fraction=MAX_UNSIGNED_FRACTION)
+    assert "HISTAMINE" in str(caught.value)
+
+
+def test_the_message_separates_absent_neurons_from_unknown_categories():
+    """They need different fixes: a join gap versus a transmitter table gap."""
+    from flywire_rl.connectome import MAX_UNSIGNED_FRACTION, ManifestMismatch, dale_signs
+
+    ids = list(range(100))
+    table = _nt([(i, "ACH" if i < 90 else "HISTAMINE") for i in ids[:95]])
+
+    with pytest.raises(ManifestMismatch) as caught:
+        dale_signs(ids, table, max_unsigned_fraction=MAX_UNSIGNED_FRACTION)
+    message = str(caught.value)
+    assert "5 absent from the transmitter table" in message
+    assert "HISTAMINE" in message
+
+
+def test_the_pilot_path_asks_for_the_strict_check():
+    """The library default is permissive; the evidence path must not be."""
+    source = (
+        Path(__file__).resolve().parents[1] / "src" / "flywire_rl" / "run_pilot.py"
+    ).read_text(encoding="utf-8")
+
+    assert "max_unsigned_fraction=C.MAX_UNSIGNED_FRACTION" in source

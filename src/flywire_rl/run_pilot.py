@@ -71,7 +71,7 @@ def build_real_graph() -> tuple[Graph, torch.Tensor, torch.Tensor]:
     nt = pd.read_csv(
         DATA_RAW / "neurons.csv.gz", usecols=["root_id", "nt_type"]
     ).set_index("root_id")["nt_type"]
-    sign = C.dale_signs(ids, nt)
+    sign = C.dale_signs(ids, nt, max_unsigned_fraction=C.MAX_UNSIGNED_FRACTION)
 
     edges = subset.edges
     real = Graph(
@@ -104,6 +104,26 @@ def main(argv=None) -> int:
     parser.add_argument("--label", default="pilot", choices=["pilot", "confirmatory"])
     parser.add_argument("--out", default="data/results")
     parser.add_argument("--tag", default="", help="suffix for the output filenames")
+    parser.add_argument(
+        "--minibatch",
+        type=int,
+        default=None,
+        help=(
+            "PPO minibatch, which is the batch dimension of the BPTT through "
+            "the decision window and therefore the thing that decides whether "
+            "the update fits. Measured at the 300-step window on a 12 GB card: "
+            "batch 8 peaks at 7.5 GB, batch 16 spills to host memory, batch 32 "
+            "raises OutOfMemoryError. pilot_v783_a4 registered 32, so anything "
+            "smaller is a deviation and is recorded in the result config. "
+            "Unset leaves the PPO default alone."
+        ),
+    )
+    parser.add_argument(
+        "--rollout-steps",
+        type=int,
+        default=None,
+        help="PPO rollout length. Unset leaves the PPO default alone.",
+    )
     parser.add_argument(
         "--coupling",
         choices=["sparse", "gather", "dense"],
@@ -156,6 +176,15 @@ def main(argv=None) -> int:
             flush=True,
         )
 
+    # Passed through only when given, so an unset flag leaves PPO's own default
+    # in place rather than pinning it here -- this script does not get to choose
+    # protocol or training parameters it was not asked for.
+    train_kwargs = {}
+    if args.minibatch is not None:
+        train_kwargs["minibatch"] = args.minibatch
+    if args.rollout_steps is not None:
+        train_kwargs["rollout_steps"] = args.rollout_steps
+
     variants = {"both": [False, True], "raw": [False], "standardised": [True]}[args.only]
     out_dir = Path(args.out)
     written = []
@@ -182,6 +211,7 @@ def main(argv=None) -> int:
             progress=progress,
             standardise=standardise,
             coupling=args.coupling,
+            **train_kwargs,
         )
 
         for arm, scores in result.scores.items():

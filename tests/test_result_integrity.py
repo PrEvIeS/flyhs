@@ -148,8 +148,12 @@ def test_result_filenames_use_the_derived_tag():
     source = (
         Path(__file__).resolve().parents[1] / "src" / "flywire_rl" / "run_pilot.py"
     ).read_text(encoding="utf-8")
-    assert "C.RELEASE_TAG" in source
-    assert '_v783_' not in source
+    # The filename expression itself, not the whole file: the CLI help text
+    # legitimately names pilot_v783_a4 when explaining a measured limit.
+    built = [l for l in source.splitlines() if "path = out_dir /" in l]
+    assert len(built) == 1, built
+    assert "C.RELEASE_TAG" in built[0]
+    assert "v783" not in built[0]
 
 
 # --- a truncated episode must not pass for a draw -------------------------

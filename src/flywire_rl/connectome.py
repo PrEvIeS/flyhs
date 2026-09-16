@@ -196,9 +196,67 @@ def select_subset(connections: pd.DataFrame, min_syn: int = MIN_SYN) -> Subset:
     return Subset(seed_ids=seed, interface_ids=interface, edges=internal)
 
 
-def dale_signs(neuron_ids, nt_by_neuron: pd.Series) -> np.ndarray:
-    """Sign each neuron +1/-1/0 from its own transmitter, per Dale's law."""
+#: How many neurons may lack a usable transmitter before a run is refused.
+#:
+#: Not applied by default. ``dale_signs`` stays permissive so that callers
+#: examining a fragment of a release -- and the tests that pin its mapping on
+#: five neurons -- keep the documented behaviour, where an unrecognised
+#: transmitter is simply 0. The strictness belongs on the path that produces
+#: evidence, so ``run_pilot`` passes this explicitly.
+#:
+#: Not zero either. A release can legitimately leave a handful of neurons
+#: without a predicted transmitter. But the number has to be small and someone
+#: has to see it, because the failure it guards is invisible: sign 0 silences
+#: every outgoing edge of that neuron in all three arms, and is indistinguish-
+#: able from a genuine modulatory neuron, which is also 0.
+MAX_UNSIGNED_FRACTION = 0.01
+
+
+def dale_signs(
+    neuron_ids,
+    nt_by_neuron: pd.Series,
+    max_unsigned_fraction: float = 1.0,
+) -> np.ndarray:
+    """Sign each neuron +1/-1/0 from its own transmitter, per Dale's law.
+
+    Two different things used to collapse into the same silent 0: a neuron the
+    transmitter table does not mention at all, and a transmitter string outside
+    the six known ones. Neither is modulatory, but both came back looking like
+    it, so a join gap between releases would have quietly muted a slice of the
+    connectome in every arm with nothing to show for it.
+
+    Aminergic neurons are still 0 -- that is a real sign, not a gap -- and they
+    are not counted here.
+
+    ``max_unsigned_fraction`` defaults to 1.0, i.e. off, so the mapping behaves
+    as it always did. Pass :data:`MAX_UNSIGNED_FRACTION` on a path whose output
+    is evidence.
+    """
     lookup = nt_by_neuron.to_dict()
+    ids = list(neuron_ids)
+
+    missing = [rid for rid in ids if rid not in lookup]
+    unknown = sorted(
+        {
+            str(lookup[rid])
+            for rid in ids
+            if rid in lookup and lookup[rid] not in _DALE_SIGN
+        }
+    )
+    unsigned = len(missing) + sum(
+        1 for rid in ids if rid in lookup and lookup[rid] not in _DALE_SIGN
+    )
+
+    if ids and unsigned / len(ids) > max_unsigned_fraction:
+        raise ManifestMismatch(
+            f"{unsigned} of {len(ids)} neurons ({unsigned / len(ids):.2%}) have no "
+            f"usable transmitter, above the {max_unsigned_fraction:.2%} tolerance: "
+            f"{len(missing)} absent from the transmitter table"
+            + (f", categories not in Dale's table: {unknown}" if unknown else "")
+            + ". Each would be signed 0, silencing all of its outgoing edges in "
+            "every arm while looking like a modulatory neuron."
+        )
+
     return np.array(
-        [_DALE_SIGN.get(lookup.get(rid), 0) for rid in neuron_ids], dtype=np.int8
+        [_DALE_SIGN.get(lookup.get(rid), 0) for rid in ids], dtype=np.int8
     )
