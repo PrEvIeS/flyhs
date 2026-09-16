@@ -218,14 +218,24 @@ def evaluate_policy(
     seed: int = 0,
     archetype: str = "aggro",
     max_actions: int = 600,
+    truncation_sink: list[int] | None = None,
 ) -> np.ndarray:
     """Play ``n_episodes`` and return each one's terminal return, agent's seat.
 
     Seats and opponents alternate on different periods so every combination is
     represented, matching how the policy was trained.
+
+    An episode that hits ``max_actions`` scores 0.0, which is the same value a
+    genuine draw produces. That is the right score -- an unfinished game has no
+    winner -- but the two are not the same event, and a batch of truncations
+    reads downstream as a clean null result rather than as a policy cycling
+    through legal actions without ever ending a turn. ``truncation_sink``
+    collects how many episodes were cut off, so the difference is visible in
+    the saved result instead of only in the scores.
     """
     pool = list(opponents)
     scores = np.zeros(n_episodes, dtype=np.float32)
+    truncated = 0
     torch.manual_seed(seed)
 
     for episode in range(n_episodes):
@@ -244,7 +254,10 @@ def evaluate_policy(
 
         outcome = game.result() if agent_seat == 0 else -game.result()
         scores[episode] = float(outcome) if game.is_over else 0.0
+        truncated += not game.is_over
 
+    if truncation_sink is not None:
+        truncation_sink.append(truncated)
     return scores
 
 
@@ -261,6 +274,7 @@ def run_seed(
     input_drive_mv: float = INPUT_DRIVE_MV,
     standardise: bool = False,
     calibration_sink: list[dict[str, float]] | None = None,
+    truncation_sink: list[int] | None = None,
     **train_kwargs,
 ) -> np.ndarray:
     """Train one policy on one arm with one seed, then evaluate it.
@@ -290,7 +304,12 @@ def run_seed(
         seed=seed,
         **train_kwargs,
     )
-    return evaluate_policy(policy, n_episodes=n_eval_episodes, seed=seed)
+    return evaluate_policy(
+        policy,
+        n_episodes=n_eval_episodes,
+        seed=seed,
+        truncation_sink=truncation_sink,
+    )
 
 
 def run_experiment(
@@ -316,10 +335,12 @@ def run_experiment(
     scores: dict[str, np.ndarray] = {}
 
     calibration: dict[str, list[dict[str, float]]] = {}
+    truncated: dict[str, list[int]] = {}
 
     for name, arm in arms.items():
         rows = []
         sink: list[dict[str, float]] = []
+        cut_off: list[int] = []
         for seed in range(n_seeds):
             if progress is not None:
                 progress(name, seed)
@@ -336,10 +357,12 @@ def run_experiment(
                     device,
                     standardise=standardise,
                     calibration_sink=sink,
+                    truncation_sink=cut_off,
                     **train_kwargs,
                 )
             )
         scores[name] = np.stack(rows)
+        truncated[name] = cut_off
         if sink:
             calibration[name] = sink
 
@@ -361,6 +384,11 @@ def run_experiment(
             # whether standardisation was real for each arm or a no-op over a
             # dead readout, which the boolean flag alone cannot distinguish.
             "calibration": calibration,
+            # Per arm, per seed: how many evaluation episodes hit the action
+            # cap instead of ending. They score 0.0, the same as a draw, so
+            # without this an arm full of unfinished games is indistinguishable
+            # from an arm that genuinely drew.
+            "truncated_episodes": truncated,
         },
         config={
             "n_seeds": n_seeds,
