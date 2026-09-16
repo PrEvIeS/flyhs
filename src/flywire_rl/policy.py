@@ -37,7 +37,12 @@ from flywire_rl.minicard import (
     TargetKind,
     action,
 )
-from flywire_rl.spiking import CouplingMode, LIFSubstrate, LowRankCoupling
+from flywire_rl.spiking import (
+    CouplingMode,
+    LIFSubstrate,
+    LowRankCoupling,
+    ShiuParams,
+)
 
 _CARD_INDEX = {card.name: i for i, card in enumerate(CARD_POOL)}
 N_CARD_TYPES = len(CARD_POOL)
@@ -223,12 +228,14 @@ class SpikingPolicy(nn.Module):
         rank: int = 8,
         steps: int = 30,
         mode: CouplingMode = CouplingMode.SPARSE,
-        input_gain: float = 1.0,
+        input_drive_mv: float = 1.0,
+        params: ShiuParams | None = None,
     ) -> None:
         super().__init__()
         self.n_neurons = n_neurons
         self.steps = steps
-        self.input_gain = input_gain
+        self.input_drive_mv = input_drive_mv
+        self.params = params or ShiuParams()
 
         self.register_buffer("input_indices", input_indices.long())
         self.register_buffer("output_indices", output_indices.long())
@@ -236,7 +243,7 @@ class SpikingPolicy(nn.Module):
         self.coupling = LowRankCoupling(
             n_neurons, pre_idx, post_idx, weights, rank=rank, mode=mode
         )
-        self.substrate = LIFSubstrate(self.coupling)
+        self.substrate = LIFSubstrate(self.coupling, params=self.params)
 
         n_in = int(input_indices.numel())
         n_out = int(output_indices.numel())
@@ -251,16 +258,19 @@ class SpikingPolicy(nn.Module):
         return self.encoder.weight.device
 
     def features(self, observation: Tensor) -> Tensor:
-        """Run the substrate and return each output neuron's mean membrane.
+        """Run the substrate and return each output neuron's mean membrane, in mV.
 
-        Amendment A4 replaced spike counts here. Measured on the v783 subset,
-        a spike-count readout leaves the median output unit with **zero**
-        variance across game states unless the network sits exactly at
-        branching 1; the membrane is graded and varies everywhere.
+        Amendment A4 reached for the membrane because a spike-count readout left
+        the median output unit with zero variance across game states -- a
+        symptom of the branching calibration, not of the readout. With the
+        absolute scale in place the choice is no longer forced, but the membrane
+        is kept: it is graded, so it carries sub-threshold evidence that a count
+        discards, and it never collapses to a constant. Note the resting value
+        is ``v_rest = -52 mV``, not zero, so these features are negative.
         """
         observation = observation.to(self.device)
         batch = observation.shape[0]
-        currents = self.encoder(observation) * self.input_gain
+        currents = self.encoder(observation) * self.input_drive_mv
 
         drive = torch.zeros(
             batch, self.n_neurons, dtype=currents.dtype, device=currents.device

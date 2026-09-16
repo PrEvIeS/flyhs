@@ -28,7 +28,12 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 import torch
 
-from flywire_rl.spiking import CouplingMode, LIFSubstrate, LowRankCoupling
+from flywire_rl.spiking import (
+    CouplingMode,
+    LIFSubstrate,
+    LowRankCoupling,
+    ShiuParams,
+)
 
 
 @dataclass(frozen=True)
@@ -197,147 +202,153 @@ def coupling_from_graph(
     ).to(device)
 
 
-def population_rate_hz(
+@dataclass(frozen=True)
+class ActivityProfile:
+    """What one arm does under a fixed tonic input, at a given ``w_syn``.
+
+    These are the quantities the calibration decides on, and they are the ones
+    the pilot never measured together: it targeted a dynamical constant and
+    never checked that the readout saw anything.
+    """
+
+    w_syn_mv: float
+    drive_mv: float
+    rate_hz: float
+    active_fraction: float
+    readout_live: int
+    readout_rate_hz: float
+
+
+def activity_profile(
     graph: Graph,
-    input_gain: float,
+    drive_mv: float,
+    input_idx: np.ndarray | None = None,
+    readout_idx: np.ndarray | None = None,
+    params: ShiuParams | None = None,
     steps: int = 200,
     batch: int = 4,
-    dt_ms: float = 1.0,
     seed: int = 0,
     device: str = "cpu",
-) -> float:
-    """Mean population firing rate under a fixed reference input."""
-    torch.manual_seed(seed)
-    substrate = LIFSubstrate(coupling_from_graph(graph, device=device), dt_ms=dt_ms)
+) -> ActivityProfile:
+    """Run the arm under a tonic drive on ``input_idx`` and measure what happens.
 
-    generator = torch.Generator().manual_seed(seed)
-    drive = torch.randn(steps, batch, graph.n, generator=generator) * input_gain
+    ``drive_mv`` is millivolts per step added in the state-update slot, so it is
+    dt-bound: a constant drive settles at ``drive_mv / (1 - exp(-dt/t_mbr))``
+    above rest. At the default ``dt = 0.1 ms`` that is about 200x the per-step
+    value, against a 7 mV gap.
+    """
+    p = params or ShiuParams()
+    torch.manual_seed(seed)
+    substrate = LIFSubstrate(coupling_from_graph(graph, device=device), params=p)
+
+    drive = torch.zeros(steps, batch, graph.n, device=device)
+    if drive_mv != 0.0:
+        columns = (
+            torch.arange(graph.n, device=device)
+            if input_idx is None
+            else torch.as_tensor(np.asarray(input_idx), device=device).long()
+        )
+        drive[:, :, columns] = drive_mv
 
     with torch.no_grad():
-        raster, _ = substrate(drive.to(device))
+        raster, _ = substrate(drive)
 
-    seconds = steps * dt_ms / 1000.0
-    return float(raster.sum()) / (graph.n * batch * seconds)
+    seconds = steps * p.dt_ms / 1000.0
+    ever_spiked = raster.sum(dim=0) > 0  # (batch, n)
+
+    if readout_idx is None:
+        readout = torch.arange(graph.n, device=device)
+    else:
+        readout = torch.as_tensor(np.asarray(readout_idx), device=device).long()
+    readout_spikes = raster.index_select(2, readout)
+
+    return ActivityProfile(
+        w_syn_mv=p.w_syn_mv,
+        drive_mv=drive_mv,
+        rate_hz=float(raster.sum()) / (graph.n * batch * seconds),
+        active_fraction=float(ever_spiked.float().mean()),
+        readout_live=int((readout_spikes.sum(dim=0) > 0).any(dim=0).sum()),
+        readout_rate_hz=float(readout_spikes.sum())
+        / (max(readout.numel(), 1) * batch * seconds),
+    )
 
 
-def calibrate_input_gain(
+#: Log-spaced candidates starting from the value Shiu et al. fitted on the whole
+#: brain. A subset keeps only a fraction of each neuron's real input, so the
+#: scale that works here is expected to sit at or above the published 0.275 mV.
+#:
+#: The ratio is 1.5, not 2. The window between "the readout never fires" and
+#: "the network saturates" is narrow -- on a matched-size synthetic graph it ran
+#: from about 3.0 to 4.0 mV, with 2.2 leaving the readout dead and 4.4 already at
+#: 25.5% of neurons active -- and a doubling grid steps straight over it.
+W_SYN_CANDIDATES = tuple(round(0.275 * 1.5**k, 3) for k in range(11))
+
+
+def calibrate_w_syn(
     graph: Graph,
-    target_hz: float = 5.0,
-    tolerance_hz: float = 0.5,
-    lo: float = 1e-3,
-    hi: float = 1e4,
-    max_iter: int = 40,
+    input_idx: np.ndarray,
+    readout_idx: np.ndarray,
+    drive_mv: float,
+    candidates: tuple[float, ...] = W_SYN_CANDIDATES,
+    min_readout_live: int = 1,
+    max_active_fraction: float = 0.25,
+    params: ShiuParams | None = None,
     **kwargs,
-) -> float:
-    """P4's dynamical gain match: drive every arm to the same population rate.
+) -> tuple[float, list[ActivityProfile]]:
+    """Pick the per-synapse scale by what the substrate must actually do.
 
-    The structural match already fixes ``rho(W) = 0.95``, so the free parameter
-    here is the input scale rather than the recurrent weights -- rescaling the
-    latter would undo the spectral match.
+    This replaces both of the pilot's calibrations. ``rho = 0.95`` and a
+    branching ratio of 1 are criteria for a *linear rate* network; on a
+    hard-threshold LIF the first left one spike moving the membrane by 6.6e-4 of
+    the threshold gap, and the second made the firing rate a property of the
+    network rather than of the input, so the 5 Hz input calibration stopped
+    converging. Neither ever asked whether the readout saw a spike, and on the
+    pilot it did not.
 
-    This is not cosmetic. The recurrent coupling multiplies presynaptic spikes,
-    so ``d(output)/d(w_eff) = s_pre``: an arm that does not spike hands its
-    adapter *exactly* zero gradient and would look like a clean topology result
-    while measuring nothing at all.
+    The criterion here is functional, after ``liuzihe02/fly-craftax``:
+
+    1. at least ``min_readout_live`` readout neurons fire, so the readout
+       carries signal rather than a constant;
+    2. no more than ``max_active_fraction`` of the network fires, so the arm is
+       transmitting rather than running away;
+    3. the driven network is strictly more active than the same network with a
+       blank input, so activity is caused by the input and not by the substrate.
+
+    Returns the chosen scale and the full sweep, which belongs in the run's
+    provenance. If nothing qualifies this raises rather than returning a
+    best-effort value: a substrate that fails all three is not a calibration
+    result and must not be run past silently.
     """
-    if population_rate_hz(graph, hi, **kwargs) < target_hz:
-        raise ValueError(
-            f"target {target_hz} Hz is unreachable: gain {hi} yields only "
-            f"{population_rate_hz(graph, hi, **kwargs):.2f} Hz"
+    base = params or ShiuParams()
+    profiles: list[ActivityProfile] = []
+
+    for w in candidates:
+        p = replace(base, w_syn_mv=w)
+        driven = activity_profile(
+            graph, drive_mv, input_idx, readout_idx, params=p, **kwargs
         )
+        profiles.append(driven)
 
-    for _ in range(max_iter):
-        mid = (lo * hi) ** 0.5  # bisect in log space; gain spans decades
-        rate = population_rate_hz(graph, mid, **kwargs)
-        if abs(rate - target_hz) <= tolerance_hz:
-            return mid
-        if rate < target_hz:
-            lo = mid
-        else:
-            hi = mid
+        if driven.readout_live < min_readout_live:
+            continue
+        if driven.active_fraction > max_active_fraction:
+            continue
 
-    raise ValueError(f"calibration did not converge within {max_iter} iterations")
+        blank = activity_profile(graph, 0.0, input_idx, readout_idx, params=p, **kwargs)
+        if driven.rate_hz > blank.rate_hz:
+            return w, profiles
 
-
-def branching_ratio(
-    graph: Graph,
-    scale: float = 1.0,
-    kick_fraction: float = 0.02,
-    kick_steps: int = 5,
-    free_steps: int = 35,
-    kick_current: float = 60.0,
-    seed: int = 0,
-    device: str = "cpu",
-) -> float:
-    """Spikes produced per spike, measured while the network runs unaided.
-
-    The network is kicked for a few steps and then left with **no external
-    drive at all**, so what is measured is transmission through the graph rather
-    than a response to injected current. A ratio near 1 is the spiking analogue
-    of a unit spectral radius: activity neither dies out nor explodes.
-    """
-    scaled = replace(graph, weight=(graph.weight * scale).astype(np.float32))
-    signed = scaled.sign[scaled.pre].astype(np.float32) * scaled.weight
-    coupling = LowRankCoupling(
-        scaled.n,
-        torch.from_numpy(np.ascontiguousarray(scaled.pre)),
-        torch.from_numpy(np.ascontiguousarray(scaled.post)),
-        torch.from_numpy(signed),
-        rank=1,
-        mode=CouplingMode.SPARSE,
-    ).to(device)
-
-    torch.manual_seed(seed)
-    drive = torch.zeros(kick_steps + free_steps, 1, scaled.n, device=device)
-    chosen = torch.randperm(scaled.n, device=device)[: int(kick_fraction * scaled.n)]
-    drive[:kick_steps, 0, chosen] = kick_current
-
-    with torch.no_grad():
-        raster, _ = LIFSubstrate(coupling)(drive)
-
-    counts = raster[kick_steps:].sum(dim=(1, 2)).cpu().numpy()
-    ratios = [
-        counts[i + 1] / counts[i] for i in range(len(counts) - 1) if counts[i] > 0
-    ]
-    return float(np.mean(ratios)) if ratios else 0.0
-
-
-def calibrate_branching(
-    graph: Graph,
-    target: float = 1.0,
-    tolerance: float = 0.15,
-    lo: float = 1e-2,
-    hi: float = 1e5,
-    max_iter: int = 40,
-    **kwargs,
-) -> float:
-    """Find the weight scale at which the network transmits at ``target``.
-
-    Amendment A3 replaced P4's ``rho = 0.95`` with this. A spectral radius near
-    1 is the right criterion for a linear rate network, where the question is
-    whether activity decays; it is the wrong scale for leaky integrate-and-fire
-    units with a hard threshold. At rho = 0.95 on the v783 subset the mean
-    synaptic weight moves a membrane by 6.6e-4 against a threshold of 1, so
-    roughly 1,500 coincident inputs would be needed to fire a neuron whose mean
-    in-degree is 20: the graph transmits nothing and topology cannot matter.
-    """
-    if branching_ratio(graph, hi, **kwargs) < target:
-        raise ValueError(
-            f"target branching {target} unreachable: scale {hi} gives only "
-            f"{branching_ratio(graph, hi, **kwargs):.3f}"
-        )
-
-    for _ in range(max_iter):
-        mid = (lo * hi) ** 0.5
-        ratio = branching_ratio(graph, mid, **kwargs)
-        if abs(ratio - target) <= tolerance:
-            return mid
-        if ratio < target:
-            lo = mid
-        else:
-            hi = mid
-
-    raise ValueError(f"branching calibration did not converge in {max_iter} steps")
+    table = "\n".join(
+        f"  w_syn={q.w_syn_mv:6.3f}  rate={q.rate_hz:8.2f} Hz  "
+        f"active={q.active_fraction:.3f}  readout_live={q.readout_live}"
+        for q in profiles
+    )
+    raise ValueError(
+        "no candidate w_syn satisfied the calibration criterion "
+        f"(readout_live >= {min_readout_live}, active_fraction <= "
+        f"{max_active_fraction}, input-dependent activity) at drive "
+        f"{drive_mv} mV/step:\n{table}"
+    )
 
 
 def graph_stats(graph: Graph) -> dict:

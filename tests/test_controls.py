@@ -8,14 +8,14 @@ mismatch rather than to topology, and the result means nothing.
 import numpy as np
 import pytest
 
+from flywire_rl.spiking import ShiuParams
 from flywire_rl.controls import (
     Graph,
-    branching_ratio,
-    calibrate_branching,
-    calibrate_input_gain,
+    W_SYN_CANDIDATES,
+    activity_profile,
+    calibrate_w_syn,
     graph_stats,
     normalise_spectral_radius,
-    population_rate_hz,
     random_control,
     shuffled_control,
 )
@@ -230,86 +230,120 @@ def test_graph_stats_counts_signs_from_the_per_neuron_vector():
     assert stats["inhibitory"] == int((graph.sign < 0).sum())
 
 
-# ---------------------------------------------------- dynamical calibration
+# ------------------------------------------------- functional calibration
+#
+# The pilot calibrated to a dynamical constant -- first rho = 0.95, then a
+# branching ratio of 1 -- and never asked whether the readout saw a spike. On
+# the v783 subset it did not: 100% of spikes stayed in the directly driven input
+# neurons. What is calibrated now is the one free parameter of the Shiu model,
+# w_syn, against what the substrate has to do: light the readout, stay below
+# runaway, and respond to the input rather than to itself.
+
+INPUT_IDX = np.arange(20)
+READOUT_IDX = np.arange(380, 400)
 
 
-def test_population_rate_increases_with_input_gain():
-    """Bisection in calibrate_input_gain depends on this being monotonic."""
-    graph = normalise_spectral_radius(_graph(), target=0.95)
-    rates = [population_rate_hz(graph, gain, steps=60) for gain in (0.5, 5.0, 50.0)]
-
-    assert rates[0] < rates[1] < rates[2]
+def _big_graph():
+    return _graph(n=400, m=4000, seed=1)
 
 
-def test_calibration_reaches_the_target_rate_within_tolerance():
-    graph = normalise_spectral_radius(_graph(), target=0.95)
-    gain = calibrate_input_gain(graph, target_hz=5.0, tolerance_hz=0.5, steps=60)
+def test_a_blank_input_leaves_the_network_completely_silent():
+    """No intrinsic noise: an undriven Shiu network has a baseline of exactly 0."""
+    profile = activity_profile(
+        _big_graph(), 0.0, INPUT_IDX, READOUT_IDX, steps=300
+    )
 
-    assert population_rate_hz(graph, gain, steps=60) == pytest.approx(5.0, abs=0.5)
+    assert profile.rate_hz == 0.0
+    assert profile.active_fraction == 0.0
+    assert profile.readout_live == 0
 
 
-def test_every_arm_can_be_calibrated_to_the_same_rate():
-    """P4's dynamical match: a silent arm learns nothing, so rates must agree."""
-    real = normalise_spectral_radius(_graph(), target=0.95)
-    arms = [
-        real,
-        normalise_spectral_radius(shuffled_control(real, seed=1, swaps_per_edge=20)),
-        normalise_spectral_radius(random_control(real, seed=1)),
+def test_activity_rises_with_the_per_synapse_scale():
+    """The sweep walks w_syn upward, so activity must not fall as it grows."""
+    graph = _big_graph()
+    rates = [
+        activity_profile(
+            graph, 0.06, INPUT_IDX, READOUT_IDX, params=ShiuParams(w_syn_mv=w), steps=300
+        ).rate_hz
+        for w in (0.275, 2.2, 8.8)
     ]
 
-    for arm in arms:
-        gain = calibrate_input_gain(arm, target_hz=5.0, tolerance_hz=0.5, steps=60)
-        assert population_rate_hz(arm, gain, steps=60) == pytest.approx(5.0, abs=0.5)
+    assert rates[0] <= rates[1] <= rates[2]
 
 
-def test_calibration_raises_when_the_target_is_unreachable():
-    graph = normalise_spectral_radius(_graph(), target=0.95)
+def test_calibration_picks_a_scale_that_lights_the_readout():
+    """The criterion the pilot lacked: the readout must actually carry signal."""
+    graph = _big_graph()
+    w_syn, sweep = calibrate_w_syn(
+        graph, INPUT_IDX, READOUT_IDX, drive_mv=0.06, steps=300
+    )
 
-    with pytest.raises(ValueError, match="unreachable"):
-        calibrate_input_gain(graph, target_hz=5000.0, tolerance_hz=0.5, steps=40)
-
-
-# -------------------------------------------------- branching calibration
-
-
-def test_branching_ratio_rises_with_the_weight_scale():
-    """Bisection in calibrate_branching depends on this being monotonic."""
-    graph = _graph(n=400, m=4000, seed=1)
-    ratios = [branching_ratio(graph, scale) for scale in (0.01, 1.0, 50.0)]
-
-    assert ratios[0] <= ratios[1] <= ratios[2]
+    chosen = activity_profile(
+        graph, 0.06, INPUT_IDX, READOUT_IDX, params=ShiuParams(w_syn_mv=w_syn), steps=300
+    )
+    assert chosen.readout_live >= 1
+    assert chosen.active_fraction <= 0.25
+    assert sweep, "the sweep must be returned for the run's provenance"
 
 
-def test_a_network_that_cannot_transmit_reports_zero_branching():
-    graph = _graph(n=400, m=4000, seed=1)
+def test_calibration_records_every_candidate_it_tried_and_stops_at_the_winner():
+    graph = _big_graph()
+    chosen, sweep = calibrate_w_syn(
+        graph, INPUT_IDX, READOUT_IDX, drive_mv=0.06,
+        candidates=(0.275, 2.2, 3.2, 8.8), steps=300,
+    )
 
-    assert branching_ratio(graph, scale=1e-6) == 0.0
-
-
-def test_calibration_reaches_the_target_branching():
-    graph = _graph(n=400, m=4000, seed=1)
-    scale = calibrate_branching(graph, target=1.0, tolerance=0.2)
-
-    assert branching_ratio(graph, scale) == pytest.approx(1.0, abs=0.2)
+    assert chosen == 3.2
+    assert [p.w_syn_mv for p in sweep] == pytest.approx([0.275, 2.2, 3.2])
 
 
-def test_every_arm_can_be_calibrated_to_the_same_branching():
-    """A4-style match: arms must transmit alike, or topology is confounded
-    with whether the substrate propagates at all."""
-    real = _graph(n=400, m=4000, seed=1)
-    arms = [
-        real,
-        shuffled_control(real, seed=1, swaps_per_edge=10),
-        random_control(real, seed=1),
+def test_the_default_grid_resolves_the_operating_window():
+    """A doubling grid steps over it.
+
+    Between "the readout never fires" and "the network saturates" there is only
+    a narrow band of w_syn -- measured at roughly 3.0 to 4.0 mV on a
+    matched-size synthetic graph, where 2.2 left the readout dead and 4.4 was
+    already past the 25% activity ceiling. Consecutive candidates must be close
+    enough that the sweep cannot jump the band.
+    """
+    ratios = [
+        b / a for a, b in zip(W_SYN_CANDIDATES, W_SYN_CANDIDATES[1:])
     ]
 
-    for arm in arms:
-        scale = calibrate_branching(arm, target=1.0, tolerance=0.2)
-        assert branching_ratio(arm, scale) == pytest.approx(1.0, abs=0.2)
+    assert W_SYN_CANDIDATES[0] == 0.275, "the grid must start at the published value"
+    assert max(ratios) <= 1.6
 
 
-def test_calibration_refuses_an_unreachable_target():
-    graph = _graph(n=400, m=4000, seed=1)
+def test_calibration_refuses_a_scale_that_makes_the_network_run_away():
+    """An arm where everything fires is not transmitting, it is saturating."""
+    with pytest.raises(ValueError, match="no candidate w_syn"):
+        calibrate_w_syn(
+            _big_graph(), INPUT_IDX, READOUT_IDX, drive_mv=0.06,
+            max_active_fraction=0.0, steps=300,
+        )
 
-    with pytest.raises(ValueError, match="unreachable"):
-        calibrate_branching(graph, target=500.0, hi=1.0)
+
+def test_calibration_raises_instead_of_returning_a_best_effort_value():
+    """A substrate that fails the criterion must stop the run, not proceed.
+
+    The pilot's whole failure was a substrate that transmitted nothing and was
+    run past anyway, producing three byte-identical arms.
+    """
+    with pytest.raises(ValueError, match="no candidate w_syn"):
+        calibrate_w_syn(
+            _big_graph(), INPUT_IDX, READOUT_IDX, drive_mv=0.06,
+            candidates=(1e-6, 1e-5), steps=300,
+        )
+
+
+def test_the_error_names_what_each_candidate_actually_did():
+    """The sweep table is the diagnostic; without it the failure is unreadable."""
+    with pytest.raises(ValueError) as caught:
+        calibrate_w_syn(
+            _big_graph(), INPUT_IDX, READOUT_IDX, drive_mv=0.06,
+            candidates=(1e-6,), steps=300,
+        )
+
+    message = str(caught.value)
+    assert "w_syn= 0.000" in message
+    assert "readout_live=" in message

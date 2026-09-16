@@ -2,10 +2,15 @@
 
 Every choice here exists to keep one property true — **arms differ in their
 edges and in nothing else**. Same node count, same edge count, same sign vector,
-same spectral radius, same calibrated firing rate, same interface indices, same
-adapter rank, same optimiser, same seeds, same budget. Anything else that
-differed would be a second explanation for whatever the experiment measures, and
-the result would not be about topology.
+same weight multiset, same per-synapse scale, same tonic input, same interface
+indices, same adapter rank, same optimiser, same seeds, same budget. Anything
+else that differed would be a second explanation for whatever the experiment
+measures, and the result would not be about topology.
+
+Note what is deliberately *not* matched any more: the arms are no longer
+rescaled to a shared spectral radius or branching ratio. Both were criteria for
+a linear rate network, both required a different weight scale per arm, and the
+first left the substrate transmitting nothing at all.
 
 A run must declare itself ``pilot`` or ``confirmatory``. Exploratory numbers
 later described as confirmatory are the ordinary way pre-registration fails, so
@@ -22,11 +27,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from dataclasses import replace as _replace
-
 from flywire_rl.controls import (
     Graph,
-    calibrate_branching,
     random_control,
     shuffled_control,
 )
@@ -35,14 +37,10 @@ from flywire_rl.policy import SpikingPolicy
 from flywire_rl.ppo import train
 
 VALID_LABELS = ("pilot", "confirmatory")
-#: Amendment A3 target. Branching near 1 is the spiking analogue of a unit
-#: spectral radius; P4's original rho = 0.95 understated the required weight
-#: scale by a factor of ~1780 and left the graph transmitting nothing.
-BRANCHING_TARGET = 1.0
-#: Amendment A4 removed the 5 Hz input calibration: once branching is fixed the
-#: firing rate is set by the network rather than the input, so that calibration
-#: is ill-posed. A single constant, identical across arms, replaces it.
-INPUT_GAIN = 20.0
+#: Tonic sensory drive, millivolts per step, identical across arms. It is
+#: dt-bound: a constant drive settles at ``drive / (1 - exp(-dt/t_mbr))`` above
+#: rest, so it must be recalibrated if ``ShiuParams.dt_ms`` changes.
+INPUT_DRIVE_MV = 0.06
 DEFAULT_OPPONENTS = (board_control_opponent, greedy_face_opponent)
 
 
@@ -68,28 +66,31 @@ def build_arms(
     real: Graph,
     seed: int = 0,
     swaps_per_edge: int = 100,
-    target_branching: float = BRANCHING_TARGET,
-    tolerance: float = 0.12,
-    device: str = "cpu",
 ) -> dict[str, Graph]:
-    """Construct the three P4 arms, each scaled to transmit at the same rate.
+    """Construct the three P4 arms. No arm is reweighted.
 
-    Each arm gets its *own* weight scale, chosen so all arms carry one spike
-    per spike. Matching the scale instead would leave the arms transmitting at
-    different rates, which is a larger difference than the topology under test.
+    The pilot gave each arm its own weight scale, chosen so that all three
+    transmitted at the same branching ratio. That is now deliberately gone, for
+    two reasons.
+
+    The scale it solved for was a *dynamical* target on a hard-threshold LIF,
+    where branching is the wrong criterion, and it needed visibly different
+    scales per arm (real 143.3, shuffled 40.7, random 38.2 at branching 0.70) --
+    a difference in gain smuggled in alongside the difference in topology.
+
+    Under the Shiu parameterisation the anatomy keeps its own units: weights are
+    synapse counts and the single absolute scale ``w_syn`` is shared by every
+    arm. Both controls permute edges while preserving the weight multiset
+    exactly, so total synaptic mass is matched by construction -- the "matched
+    wiring budget" that Correig-Fraga et al. show is what separates a topology
+    result from an artefact of how much wire each graph was allowed. Whatever
+    transmission difference remains between arms is then the effect under test.
     """
-    raw = {
+    return {
         "real": real,
         "shuffled": shuffled_control(real, seed=seed, swaps_per_edge=swaps_per_edge),
         "random": random_control(real, seed=seed),
     }
-    arms = {}
-    for name, arm in raw.items():
-        scale = calibrate_branching(
-            arm, target=target_branching, tolerance=tolerance, device=device
-        )
-        arms[name] = _replace(arm, weight=(arm.weight * scale).astype(np.float32))
-    return arms
 
 
 def make_policy(
@@ -99,7 +100,7 @@ def make_policy(
     seed: int = 0,
     rank: int = 8,
     steps: int = 30,
-    input_gain: float = 1.0,
+    input_drive_mv: float = INPUT_DRIVE_MV,
     device: str = "cpu",
 ) -> SpikingPolicy:
     """Wrap an arm as a policy. Dale signs are applied; the wiring stays frozen."""
@@ -114,7 +115,7 @@ def make_policy(
         output_indices=output_indices,
         rank=rank,
         steps=steps,
-        input_gain=input_gain,
+        input_drive_mv=input_drive_mv,
     ).to(device)
 
 
@@ -172,12 +173,12 @@ def run_seed(
     rank: int = 8,
     steps: int = 30,
     device: str = "cpu",
-    input_gain: float = INPUT_GAIN,
+    input_drive_mv: float = INPUT_DRIVE_MV,
     **train_kwargs,
 ) -> np.ndarray:
     """Train one policy on one arm with one seed, then evaluate it."""
     policy = make_policy(
-        arm, input_indices, output_indices, seed, rank, steps, input_gain, device
+        arm, input_indices, output_indices, seed, rank, steps, input_drive_mv, device
     )
     train(
         policy,
@@ -208,9 +209,7 @@ def run_experiment(
     **train_kwargs,
 ) -> ExperimentResult:
     """Run every arm across every seed and return the score matrices."""
-    arms = build_arms(
-        real, seed=arm_seed, swaps_per_edge=swaps_per_edge, device=device
-    )
+    arms = build_arms(real, seed=arm_seed, swaps_per_edge=swaps_per_edge)
     scores: dict[str, np.ndarray] = {}
 
     for name, arm in arms.items():

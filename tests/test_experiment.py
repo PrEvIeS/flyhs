@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import torch
 
-from flywire_rl.controls import Graph, branching_ratio
+from flywire_rl.controls import Graph
 from flywire_rl.experiment import (
     ExperimentResult,
     build_arms,
@@ -56,29 +56,30 @@ def test_arms_share_node_and_edge_counts():
     assert len({a.n_edges for a in arms.values()}) == 1
 
 
-def test_arms_share_a_branching_ratio():
-    """Amendment A3: arms are matched on transmission, not spectral radius.
+def test_no_arm_is_reweighted():
+    """The arms share one absolute per-synapse scale; none is rescaled.
 
-    Each arm gets its own weight scale so that all of them carry one spike per
-    spike. Matching the scale instead would leave them transmitting at
-    different rates, a larger difference than the topology under test.
+    The pilot gave each arm its own weight scale so that all three matched on
+    branching ratio, which meant real 143.3 against shuffled 40.7 and random
+    38.2 -- a difference in gain travelling alongside the difference in
+    topology. Under the Shiu parameterisation weights are synapse counts and
+    ``w_syn`` is shared, so this must now hold exactly.
     """
-    arms = build_arms(_graph(), seed=0, swaps_per_edge=5, target_branching=1.0)
+    original = _graph()
+    arms = build_arms(original, seed=0, swaps_per_edge=5)
 
     for arm in arms.values():
-        assert branching_ratio(arm) == pytest.approx(1.0, abs=0.2)
+        assert float(arm.weight.sum()) == pytest.approx(float(original.weight.sum()))
 
 
-def test_arms_receive_different_weight_scales():
-    """Equal transmission generally requires unequal scaling: that is the point."""
+def test_arms_share_the_weight_multiset_exactly():
+    """Matched wiring budget: the controls permute edges, they do not add wire."""
     original = _graph()
-    arms = build_arms(original, seed=0, swaps_per_edge=5, target_branching=1.0)
-    scales = {
-        name: float(arm.weight.sum() / original.weight.sum())
-        for name, arm in arms.items()
-    }
+    arms = build_arms(original, seed=0, swaps_per_edge=5)
 
-    assert len(set(round(v, 6) for v in scales.values())) > 1
+    reference = np.sort(original.weight)
+    for arm in arms.values():
+        assert np.array_equal(np.sort(arm.weight), reference)
 
 
 def test_arms_preserve_the_sign_vector_exactly():

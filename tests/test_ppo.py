@@ -31,12 +31,12 @@ def _policy(n=40, seed=0):
         n_neurons=n,
         pre_idx=torch.from_numpy(pre[keep]),
         post_idx=torch.from_numpy(post[keep]),
-        weights=torch.ones(int(keep.sum())) * 25.0,
+        weights=torch.ones(int(keep.sum())) * 200.0,
         input_indices=torch.arange(0, 12),
         output_indices=torch.arange(n - 12, n),
         rank=4,
-        steps=6,
-        input_gain=40.0,
+        steps=60,
+        input_drive_mv=0.06,
     )
 
 
