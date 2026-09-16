@@ -220,5 +220,17 @@
    "readout_rate_hz": 28.0303,
    "passes_criterion": false
   }
- ]
+ ],
+ "verdict": "At the production drive the random control violates the liveness criterion while the real and shuffled arms satisfy it. That is a confound, not a tuning preference: the arms are supposed to differ in their edges and in nothing else, and here one of them is in a different dynamical regime from the two it is compared against.",
+ "reasoning": [
+  "At drive 20.0 and 300 steps: active fraction 0.1762 real, 0.2104 shuffled, 0.6037 random, against a 0.25 ceiling. Real and shuffled pass, random is 2.4x over.",
+  "The ordering is the one the random control's extra propagation predicts -- decision_window_v783.json already recorded 6527 spiking neurons for random against 2379 for real at the restored window -- so this is a property of the topologies rather than noise.",
+  "0.2 is the only drive swept at which all three arms pass; random reaches 0.3655 by drive 0.5. Readout liveness at 0.2 is 9/44 real, 3/44 shuffled, 6/44 random, so the criterion's first clause is still met everywhere.",
+  "Everything plateaus above drive 10: 20.0 and 10.0 give identical active fractions and rates in all three arms, so the production value is not even on the part of the curve where the drive still does anything."
+ ],
+ "caveats": [
+  "activity_profile runs forward only under no_grad with an untrained policy; training changes the adapter and therefore the activity. These figures describe the regime a run starts in, which is what the calibration criterion is written about, not where it ends up.",
+  "Only seven drive values were swept, on a log-ish grid, at batch 2. A narrower search between 0.2 and 0.5 would likely find a better value than 0.2, which is the smallest tried rather than the best."
+ ],
+ "consequence": "Choosing a drive here is a protocol decision, not an implementation one. The measurement narrows it to the region below 0.5, and says plainly that the current 20.0 is both arm-dependent and past the point where the drive changes anything."
 }

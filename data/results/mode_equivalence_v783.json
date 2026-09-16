@@ -17,10 +17,10 @@
  "verdict": "The modes are interchangeable on the real subset at this window.",
  "active_fraction": 0.8115,
  "saturation_check": {
-  "measured_active_fraction": 0.8115,
-  "criterion_max_active_fraction": 0.25,
-  "source": "controls.calibrate_w_syn default, criterion 2: 'no more than max_active_fraction of the network fires, so the arm is transmitting rather than running away'",
-  "passes": false,
-  "note": "Incidental to the equivalence question but more consequential than it. At the production drive of 20.0 mV and the restored 300-step window, the real arm runs 3.2x over the project's own saturation ceiling. INPUT_DRIVE_MV = 20.0 was chosen at the broken 30-step window, where only the 1042 input neurons fired and nothing propagated; experiment.py already records it as a working value rather than a calibrated one. calibrate_w_syn raises when the criterion fails, and says a substrate that fails it must not be run past silently -- but it is never called from run_pilot or run_experiment, so it would be."
- }
+  "RETRACTED": true,
+  "what_was_claimed": "That the real arm runs at an active fraction of 0.81 against a 0.25 ceiling, i.e. saturated.",
+  "why_it_was_wrong": "This script drove drive[:, :, :1042] -- the first 1042 POSITIONS in sorted root_id order -- not the 1042 neurons select_io_indices identifies as inputs. Current was injected into the wrong neurons, so the 0.8115 figure describes a configuration the experiment never runs. It is the same positional-versus-label confusion the codebase warns about at run_pilot.py, arrived at independently.",
+  "correct_measurement": "data/results/drive_at_window_v783.json, via controls.activity_profile with the real input and readout indices: at drive 20.0 and 300 steps the active fraction is 0.1762 for real, 0.2104 for shuffled and 0.6037 for random."
+ },
+ "note_on_the_equivalence_result": "The indexing error does not touch the equivalence finding, which compares the two modes against each other under one identical drive. Whatever neurons were driven, both modes were driven the same way and produced byte-identical rasters."
 }
