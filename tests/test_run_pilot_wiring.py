@@ -55,8 +55,16 @@ def fake_tables(monkeypatch, tmp_path):
         calls.append("select_subset")
         return Subset(seed_ids=set(IDS), interface_ids=set(), edges=edges)
 
-    def dale_signs(neuron_ids, nt_by_neuron, **kwargs):
+    def dale_signs(neuron_ids, nt_by_neuron, report=None, **kwargs):
         calls.append("dale_signs")
+        if report is not None:
+            report.update(
+                n_neurons=len(list(neuron_ids)),
+                absent_from_table=0,
+                null_transmitter=0,
+                null_fraction=0.0,
+                unknown_categories=[],
+            )
         # One sign per neuron, in the order the caller passed the ids.
         return np.array([1 if int(r) % 200 else -1 for r in neuron_ids], dtype=np.int8)
 
@@ -167,7 +175,7 @@ def test_pick_device_honours_an_explicit_request():
     assert run_pilot.pick_device("auto") in {"cpu", "cuda", "mps"}
 
 
-# --- an unsigned neuron must not pass for a modulatory one ----------------
+# --- a missing sign, a missing prediction and a stale table differ ----------
 
 
 def _nt(pairs) -> pd.Series:
@@ -183,16 +191,39 @@ def test_known_transmitters_keep_their_signs():
         [1, 2, 3, 4], _nt([(1, "ACH"), (2, "GABA"), (3, "GLUT"), (4, "DA")])
     )
 
-    # DA is genuinely 0: modulatory, not missing.
+    # DA is genuinely 0: modulatory, not a gap.
     assert list(signs) == [1, -1, -1, 0]
 
 
-def test_the_check_is_off_unless_a_caller_asks_for_it():
-    """The mapping's documented behaviour is unchanged: unrecognised is 0.
+def test_a_neuron_without_a_prediction_is_signed_zero_and_counted():
+    """The release saying it does not know is data, not an error."""
+    from flywire_rl.connectome import dale_signs
 
-    Strictness belongs on the path that produces evidence, which passes the
-    tolerance explicitly, not on every caller inspecting a fragment.
-    """
+    report: dict = {}
+    signs = dale_signs(
+        [1, 2, 3], _nt([(1, "ACH"), (2, float("nan")), (3, "GABA")]), report=report
+    )
+
+    assert list(signs) == [1, 0, -1]
+    assert report["null_transmitter"] == 1
+    assert report["null_fraction"] == pytest.approx(1 / 3)
+    assert report["absent_from_table"] == 0
+
+
+def test_a_stale_dale_table_always_raises():
+    """The release knows a transmitter this code does not; guessing is worse."""
+    from flywire_rl.connectome import ManifestMismatch, dale_signs
+
+    with pytest.raises(ManifestMismatch, match="not in Dale's table"):
+        dale_signs(
+            [1, 2],
+            _nt([(1, "ACH"), (2, "HISTAMINE")]),
+            refuse_unknown_categories=True,
+        )
+
+
+def test_an_unknown_category_is_still_zero_for_a_plain_call():
+    """The documented mapping, pinned by test_connectome, is unchanged."""
     from flywire_rl.connectome import dale_signs
 
     signs = dale_signs([1, 2], _nt([(1, "ACH"), (2, "UNKNOWN")]))
@@ -200,58 +231,46 @@ def test_the_check_is_off_unless_a_caller_asks_for_it():
     assert list(signs) == [1, 0]
 
 
-def test_a_few_unsigned_neurons_are_tolerated():
-    """A release can leave a handful unpredicted; refusing on one is useless."""
-    from flywire_rl.connectome import MAX_UNSIGNED_FRACTION, dale_signs
-
-    ids = list(range(200))
-    table = _nt([(i, "ACH") for i in ids if i != 0])  # one absent, i.e. 0.5%
-
-    signs = dale_signs(ids, table, max_unsigned_fraction=MAX_UNSIGNED_FRACTION)
-    assert signs[0] == 0
-    assert set(signs[1:]) == {1}
-
-
-def test_a_join_gap_above_tolerance_raises():
-    """The failure it guards is invisible: sign 0 mutes every outgoing edge."""
-    from flywire_rl.connectome import MAX_UNSIGNED_FRACTION, ManifestMismatch, dale_signs
+def test_a_join_gap_is_refused_when_a_tolerance_is_given():
+    from flywire_rl.connectome import ManifestMismatch, dale_signs
 
     ids = list(range(100))
-    table = _nt([(i, "ACH") for i in ids[:90]])  # ten percent absent
+    table = _nt([(i, "ACH") for i in ids[:90]])  # ten absent
 
-    with pytest.raises(ManifestMismatch, match="no usable transmitter"):
-        dale_signs(ids, table, max_unsigned_fraction=MAX_UNSIGNED_FRACTION)
-
-
-def test_an_unknown_transmitter_category_is_reported_by_name():
-    from flywire_rl.connectome import MAX_UNSIGNED_FRACTION, ManifestMismatch, dale_signs
-
-    ids = list(range(100))
-    table = _nt([(i, "ACH" if i < 90 else "HISTAMINE") for i in ids])
-
-    with pytest.raises(ManifestMismatch) as caught:
-        dale_signs(ids, table, max_unsigned_fraction=MAX_UNSIGNED_FRACTION)
-    assert "HISTAMINE" in str(caught.value)
+    with pytest.raises(ManifestMismatch, match="absent from the transmitter table"):
+        dale_signs(ids, table, max_absent_fraction=0.001)
 
 
-def test_the_message_separates_absent_neurons_from_unknown_categories():
-    """They need different fixes: a join gap versus a transmitter table gap."""
-    from flywire_rl.connectome import MAX_UNSIGNED_FRACTION, ManifestMismatch, dale_signs
+def test_a_join_gap_is_ignored_when_no_tolerance_is_given():
+    """The check is opt-in; the evidence path opts in, a fragment reader need not."""
+    from flywire_rl.connectome import dale_signs
 
-    ids = list(range(100))
-    table = _nt([(i, "ACH" if i < 90 else "HISTAMINE") for i in ids[:95]])
+    signs = dale_signs([1, 2], _nt([(1, "ACH")]))
 
-    with pytest.raises(ManifestMismatch) as caught:
-        dale_signs(ids, table, max_unsigned_fraction=MAX_UNSIGNED_FRACTION)
-    message = str(caught.value)
-    assert "5 absent from the transmitter table" in message
-    assert "HISTAMINE" in message
+    assert list(signs) == [1, 0]
 
 
-def test_the_pilot_path_asks_for_the_strict_check():
+def test_the_report_separates_the_two_kinds_of_gap():
+    from flywire_rl.connectome import dale_signs
+
+    report: dict = {}
+    dale_signs(
+        [1, 2, 3, 4],
+        _nt([(1, "ACH"), (2, float("nan")), (3, "GABA")]),  # 4 absent
+        report=report,
+    )
+
+    assert report["absent_from_table"] == 1
+    assert report["null_transmitter"] == 1
+    assert report["unknown_categories"] == []
+
+
+def test_the_pilot_path_asks_for_the_join_check_and_records_the_report():
     """The library default is permissive; the evidence path must not be."""
     source = (
         Path(__file__).resolve().parents[1] / "src" / "flywire_rl" / "run_pilot.py"
     ).read_text(encoding="utf-8")
 
-    assert "max_unsigned_fraction=C.MAX_UNSIGNED_FRACTION" in source
+    assert "max_absent_fraction=C.MAX_ABSENT_FRACTION" in source
+    assert "refuse_unknown_categories=True" in source
+    assert "report=sign_report" in source

@@ -196,66 +196,92 @@ def select_subset(connections: pd.DataFrame, min_syn: int = MIN_SYN) -> Subset:
     return Subset(seed_ids=seed, interface_ids=interface, edges=internal)
 
 
-#: How many neurons may lack a usable transmitter before a run is refused.
+#: How many neurons may be missing from the transmitter table before a run is
+#: refused, as a fraction.
 #:
-#: Not applied by default. ``dale_signs`` stays permissive so that callers
-#: examining a fragment of a release -- and the tests that pin its mapping on
-#: five neurons -- keep the documented behaviour, where an unrecognised
-#: transmitter is simply 0. The strictness belongs on the path that produces
-#: evidence, so ``run_pilot`` passes this explicitly.
-#:
-#: Not zero either. A release can legitimately leave a handful of neurons
-#: without a predicted transmitter. But the number has to be small and someone
-#: has to see it, because the failure it guards is invisible: sign 0 silences
-#: every outgoing edge of that neuron in all three arms, and is indistinguish-
-#: able from a genuine modulatory neuron, which is also 0.
-MAX_UNSIGNED_FRACTION = 0.01
+#: This guards a join gap, not a gap in knowledge. A neuron absent from
+#: ``neurons.csv.gz`` while present in the connectivity table means the two
+#: files disagree about which neurons exist, which is a data-assembly error and
+#: should be small or zero.
+MAX_ABSENT_FRACTION = 0.001
 
 
 def dale_signs(
     neuron_ids,
     nt_by_neuron: pd.Series,
-    max_unsigned_fraction: float = 1.0,
+    max_absent_fraction: float | None = None,
+    refuse_unknown_categories: bool = False,
+    report: dict | None = None,
 ) -> np.ndarray:
     """Sign each neuron +1/-1/0 from its own transmitter, per Dale's law.
 
-    Two different things used to collapse into the same silent 0: a neuron the
-    transmitter table does not mention at all, and a transmitter string outside
-    the six known ones. Neither is modulatory, but both came back looking like
-    it, so a join gap between releases would have quietly muted a slice of the
-    connectome in every arm with nothing to show for it.
+    Three different things used to collapse into the same silent 0, and they
+    mean different things:
 
-    Aminergic neurons are still 0 -- that is a real sign, not a gap -- and they
-    are not counted here.
+    * **absent** from the transmitter table entirely. The connectivity table and
+      ``neurons.csv.gz`` disagree about which neurons exist -- a join gap, and
+      an error. Refused when ``max_absent_fraction`` is given.
+    * **present but null**. The release has no transmitter prediction for that
+      neuron. That is the data telling the truth about what it does not know,
+      not a mistake, so it is counted and reported rather than refused. On v783
+      this is 705 of the 15,400 neurons in the P1 subset, 4.6 percent.
+    * **present with a category Dale's table does not know**. The release knows
+      a transmitter that :data:`_DALE_SIGN` does not, so the table here is
+      stale. Refused when ``refuse_unknown_categories`` is set, because guessing
+      a sign is worse than stopping.
 
-    ``max_unsigned_fraction`` defaults to 1.0, i.e. off, so the mapping behaves
-    as it always did. Pass :data:`MAX_UNSIGNED_FRACTION` on a path whose output
-    is evidence.
+    Aminergic neurons are 0 as well, but that is a real sign rather than a gap,
+    and they are not counted in any of the three.
+
+    Every refusal is opt-in. A plain call keeps the documented mapping, where
+    anything unrecognised is 0, because a caller inspecting a fragment of a
+    release is not making a claim about it. ``run_pilot`` opts in, because its
+    output is a result file.
+
+    ``report``, if given, receives the counts, so a run can record how much of
+    its substrate was unsigned instead of leaving it to be rediscovered.
     """
     lookup = nt_by_neuron.to_dict()
     ids = list(neuron_ids)
 
-    missing = [rid for rid in ids if rid not in lookup]
-    unknown = sorted(
+    absent = [rid for rid in ids if rid not in lookup]
+    null = [rid for rid in ids if rid in lookup and pd.isna(lookup[rid])]
+    unknown_categories = sorted(
         {
             str(lookup[rid])
             for rid in ids
-            if rid in lookup and lookup[rid] not in _DALE_SIGN
+            if rid in lookup
+            and not pd.isna(lookup[rid])
+            and lookup[rid] not in _DALE_SIGN
         }
     )
-    unsigned = len(missing) + sum(
-        1 for rid in ids if rid in lookup and lookup[rid] not in _DALE_SIGN
-    )
 
-    if ids and unsigned / len(ids) > max_unsigned_fraction:
-        raise ManifestMismatch(
-            f"{unsigned} of {len(ids)} neurons ({unsigned / len(ids):.2%}) have no "
-            f"usable transmitter, above the {max_unsigned_fraction:.2%} tolerance: "
-            f"{len(missing)} absent from the transmitter table"
-            + (f", categories not in Dale's table: {unknown}" if unknown else "")
-            + ". Each would be signed 0, silencing all of its outgoing edges in "
-            "every arm while looking like a modulatory neuron."
+    if report is not None:
+        report.update(
+            n_neurons=len(ids),
+            absent_from_table=len(absent),
+            null_transmitter=len(null),
+            null_fraction=round(len(null) / len(ids), 6) if ids else 0.0,
+            unknown_categories=unknown_categories,
         )
+
+    if unknown_categories and refuse_unknown_categories:
+        raise ManifestMismatch(
+            f"transmitter categories not in Dale's table: {unknown_categories}. "
+            "The release knows a transmitter this code does not, so _DALE_SIGN "
+            "is stale; signing them 0 would silence their outgoing edges in "
+            "every arm while looking like modulation."
+        )
+
+    if max_absent_fraction is not None and ids:
+        if len(absent) / len(ids) > max_absent_fraction:
+            raise ManifestMismatch(
+                f"{len(absent)} of {len(ids)} neurons "
+                f"({len(absent) / len(ids):.2%}) are absent from the transmitter "
+                f"table, above the {max_absent_fraction:.2%} tolerance. The "
+                "connectivity table and the transmitter table disagree about "
+                "which neurons exist."
+            )
 
     return np.array(
         [_DALE_SIGN.get(lookup.get(rid), 0) for rid in ids], dtype=np.int8

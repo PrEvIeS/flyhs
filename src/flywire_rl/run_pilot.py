@@ -71,7 +71,25 @@ def build_real_graph() -> tuple[Graph, torch.Tensor, torch.Tensor]:
     nt = pd.read_csv(
         DATA_RAW / "neurons.csv.gz", usecols=["root_id", "nt_type"]
     ).set_index("root_id")["nt_type"]
-    sign = C.dale_signs(ids, nt, max_unsigned_fraction=C.MAX_UNSIGNED_FRACTION)
+    # The report is the point as much as the check: on v783, 705 of the 15,400
+    # neurons in the subset carry no transmitter prediction and are therefore
+    # signed 0, silent in every arm. That is 4.6 percent of the substrate and
+    # it belongs in the run's own record, not in someone's memory.
+    sign_report: dict = {}
+    sign = C.dale_signs(
+        ids,
+        nt,
+        max_absent_fraction=C.MAX_ABSENT_FRACTION,
+        refuse_unknown_categories=True,
+        report=sign_report,
+    )
+    print(
+        f"  dale signs: {sign_report['null_transmitter']} of "
+        f"{sign_report['n_neurons']} neurons "
+        f"({sign_report['null_fraction']:.2%}) have no transmitter prediction "
+        f"and are signed 0",
+        flush=True,
+    )
 
     edges = subset.edges
     real = Graph(
