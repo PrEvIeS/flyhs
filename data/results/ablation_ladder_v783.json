@@ -1,0 +1,64 @@
+{
+ "label": "ablation_ladder",
+ "question": "Can the evaluation detect anything at all -- does removing the substrate, the observation or the training change the score?",
+ "method": "run_pilot --seeds 1 --steps 600 --eval-episodes 20 --only raw --coupling gather --minibatch 8 --ablations. Twenty evaluation episodes per row, identical seats, opponents and game seeds across every row.",
+ "rows": {
+  "intact": "the trained policy",
+  "untrained": "the same policy before a single gradient step",
+  "silent": "the trained policy with the substrate replaced by its resting constant",
+  "blank": "the trained policy with the observation zeroed, substrate still driven",
+  "random": "uniform choice among legal actions, no policy"
+ },
+ "mean_score": {
+  "real": {
+   "intact": -1.0,
+   "untrained": -1.0,
+   "silent": -1.0,
+   "blank": -1.0,
+   "random": -0.9
+  },
+  "shuffled": {
+   "intact": -1.0,
+   "untrained": -1.0,
+   "silent": -1.0,
+   "blank": -1.0,
+   "random": -0.9
+  },
+  "random": {
+   "intact": -1.0,
+   "untrained": -1.0,
+   "silent": -1.0,
+   "blank": -1.0,
+   "random": -0.9
+  }
+ },
+ "outcomes": {
+  "every_policy_row": "0 wins, 0 draws, 20 losses",
+  "random_row": "1 win, 0 draws, 19 losses, identical across all three arms as it must be since it never consults the policy"
+ },
+ "truncated_episodes": {
+  "real": [
+   0
+  ],
+  "shuffled": [
+   0
+  ],
+  "random": [
+   0
+  ]
+ },
+ "verdict": "The instrument is not shown to work. The crudest perturbation available -- silencing the substrate entirely -- changes nothing, and neither does removing the observation or removing the training. No arm comparison can be reported from this configuration.",
+ "reasoning": [
+  "Twelve policy configurations -- three arms by four conditions -- all score exactly 0 wins in 20. Training, the substrate and the observation are each individually removable with no measurable effect.",
+  "5p00kyy/neuroterrarium met the same tie between arms and resolved it by adding coarse perturbations that did move their readout, which is what let them report a null rather than an instrument failure. Ours do not move. Until at least one rung moves, a tie between arms is uninformative about topology.",
+  "The single non-floor value is one lucky win by uniform random play. At n = 20 and one seed that is one game, not a result -- but it does set the scale: the scripted opponents are beatable blind about five percent of the time, and no trained policy here reached even that.",
+  "Zero truncated episodes everywhere, so every score is a genuine terminal loss rather than a game cut off at the action cap."
+ ],
+ "caveats": [
+  "One seed, 600 training steps against a registered budget of 500,000. This says the instrument cannot detect degradation AT THIS BUDGET; it does not say the policy can never learn. gradient_reach_v783.json shows the gradient does reach the encoder on the real subset.",
+  "Twenty episodes per row gives a resolution of one game, i.e. 0.1 in mean score. A real effect smaller than that would be invisible here.",
+  "Raw readout only; the standardised variant was not run."
+ ],
+ "consequence": "Do not spend compute on seeds, arms or the confirmatory series. The next measurement is whether anything at all can beat uniform random on this task against these opponents -- which makes the non-connectome baseline a diagnostic rather than a control.",
+ "generated": "2026-09-17"
+}
