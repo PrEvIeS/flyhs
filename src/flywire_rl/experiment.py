@@ -229,6 +229,7 @@ def evaluate_policy(
     archetype: str = "aggro",
     max_actions: int = 600,
     truncation_sink: list[int] | None = None,
+    ablation: str | None = None,
 ) -> np.ndarray:
     """Play ``n_episodes`` and return each one's terminal return, agent's seat.
 
@@ -242,11 +243,66 @@ def evaluate_policy(
     through legal actions without ever ending a turn. ``truncation_sink``
     collects how many episodes were cut off, so the difference is visible in
     the saved result instead of only in the scores.
+
+    ``ablation`` runs the same trained policy with something removed -- see
+    :attr:`SpikingPolicy.ablation`. A policy that scores the same with its
+    observation blanked is not using it, and an arm ordering produced by such
+    policies is an ordering between clocks. The switch is restored afterwards
+    so a caller cannot leave a policy ablated by accident.
     """
     pool = list(opponents)
     scores = np.zeros(n_episodes, dtype=np.float32)
     truncated = 0
     torch.manual_seed(seed)
+
+    was = policy.ablation
+    policy.ablation = ablation
+    try:
+        for episode in range(n_episodes):
+            agent_seat = episode % 2
+            foe = pool[(episode // 2) % len(pool)]
+            game = _make_game(seed * 100_003 + episode, archetype)
+
+            actions = 0
+            while not game.is_over and actions < max_actions:
+                if game.to_move == agent_seat:
+                    chosen, _ = policy.act_with_record(game)
+                else:
+                    chosen = foe(game)
+                game.step(chosen)
+                actions += 1
+
+            outcome = game.result() if agent_seat == 0 else -game.result()
+            scores[episode] = float(outcome) if game.is_over else 0.0
+            truncated += not game.is_over
+    finally:
+        # Restored even on an exception: a policy left ablated would quietly
+        # poison every later evaluation in the same run.
+        policy.ablation = was
+
+    if truncation_sink is not None:
+        truncation_sink.append(truncated)
+    return scores
+
+
+def evaluate_random(
+    opponents=DEFAULT_OPPONENTS,
+    n_episodes: int = 100,
+    seed: int = 0,
+    archetype: str = "aggro",
+    max_actions: int = 600,
+) -> np.ndarray:
+    """The floor: uniform choice among the legal actions, no policy at all.
+
+    Deliberately a copy of :func:`evaluate_policy`'s schedule rather than a
+    shared helper parameterised by an actor. The two must agree on seats,
+    opponents and game seeds for the comparison to mean anything, and the way
+    that guarantee usually breaks is someone changing the shared helper for one
+    caller. Kept together so a divergence is visible in a diff.
+    """
+    pool = list(opponents)
+    scores = np.zeros(n_episodes, dtype=np.float32)
+    rng = np.random.default_rng(seed)
 
     for episode in range(n_episodes):
         agent_seat = episode % 2
@@ -256,7 +312,8 @@ def evaluate_policy(
         actions = 0
         while not game.is_over and actions < max_actions:
             if game.to_move == agent_seat:
-                chosen, _ = policy.act_with_record(game)
+                legal = game.legal_actions()
+                chosen = legal[int(rng.integers(len(legal)))]
             else:
                 chosen = foe(game)
             game.step(chosen)
@@ -264,10 +321,7 @@ def evaluate_policy(
 
         outcome = game.result() if agent_seat == 0 else -game.result()
         scores[episode] = float(outcome) if game.is_over else 0.0
-        truncated += not game.is_over
 
-    if truncation_sink is not None:
-        truncation_sink.append(truncated)
     return scores
 
 
@@ -286,6 +340,7 @@ def run_seed(
     coupling: CouplingMode | str = CouplingMode.SPARSE,
     calibration_sink: list[dict[str, float]] | None = None,
     truncation_sink: list[int] | None = None,
+    ablation_sink: dict[str, list[list[float]]] | None = None,
     **train_kwargs,
 ) -> np.ndarray:
     """Train one policy on one arm with one seed, then evaluate it.
@@ -308,6 +363,15 @@ def run_seed(
     )
     if calibration_sink is not None and policy.calibration is not None:
         calibration_sink.append(policy.calibration)
+
+    # Measured before a single gradient step, on the same seeds the trained
+    # policy will face. cobanov/flyjump's table turns on this row and the
+    # silenced one: together they show the circuit and the training are both
+    # necessary, and without them a score is not evidence of either.
+    if ablation_sink is not None:
+        ablation_sink.setdefault("untrained", []).append(
+            evaluate_policy(policy, n_episodes=n_eval_episodes, seed=seed).tolist()
+        )
     train(
         policy,
         lambda s: _make_game(s),
@@ -316,12 +380,28 @@ def run_seed(
         seed=seed,
         **train_kwargs,
     )
-    return evaluate_policy(
+    scores = evaluate_policy(
         policy,
         n_episodes=n_eval_episodes,
         seed=seed,
         truncation_sink=truncation_sink,
     )
+
+    if ablation_sink is not None:
+        for name in ("silent", "blank"):
+            ablation_sink.setdefault(name, []).append(
+                evaluate_policy(
+                    policy,
+                    n_episodes=n_eval_episodes,
+                    seed=seed,
+                    ablation=name,
+                ).tolist()
+            )
+        ablation_sink.setdefault("random", []).append(
+            evaluate_random(n_episodes=n_eval_episodes, seed=seed).tolist()
+        )
+
+    return scores
 
 
 def run_experiment(
@@ -341,6 +421,7 @@ def run_experiment(
     progress=None,
     standardise: bool = False,
     coupling: CouplingMode | str = CouplingMode.SPARSE,
+    ablations: bool = False,
     **train_kwargs,
 ) -> ExperimentResult:
     """Run every arm across every seed and return the score matrices."""
@@ -349,11 +430,13 @@ def run_experiment(
 
     calibration: dict[str, list[dict[str, float]]] = {}
     truncated: dict[str, list[int]] = {}
+    ablation: dict[str, dict[str, list[list[float]]]] = {}
 
     for name, arm in arms.items():
         rows = []
         sink: list[dict[str, float]] = []
         cut_off: list[int] = []
+        rungs: dict[str, list[list[float]]] | None = {} if ablations else None
         for seed in range(n_seeds):
             if progress is not None:
                 progress(name, seed)
@@ -372,11 +455,14 @@ def run_experiment(
                     coupling=coupling,
                     calibration_sink=sink,
                     truncation_sink=cut_off,
+                    ablation_sink=rungs,
                     **train_kwargs,
                 )
             )
         scores[name] = np.stack(rows)
         truncated[name] = cut_off
+        if rungs:
+            ablation[name] = rungs
         if sink:
             calibration[name] = sink
 
@@ -403,6 +489,12 @@ def run_experiment(
             # without this an arm full of unfinished games is indistinguishable
             # from an arm that genuinely drew.
             "truncated_episodes": truncated,
+            # Per arm: the same trained policy with its readout silenced or its
+            # observation blanked, the untrained policy on a live substrate,
+            # and uniform random play. Empty unless ablations=True. A trained
+            # arm that scores like its own blanked copy is not reading the
+            # game, and no ordering between such arms is a topology result.
+            "ablations": ablation,
         },
         config={
             "n_seeds": n_seeds,
@@ -415,6 +507,7 @@ def run_experiment(
             "swaps_per_edge": swaps_per_edge,
             "standardise": standardise,
             "coupling": CouplingMode(coupling).value,
+            "ablations": ablations,
             "n_neurons": real.n,
             "n_edges": real.n_edges,
             "train_kwargs": {k: str(v) for k, v in train_kwargs.items()},

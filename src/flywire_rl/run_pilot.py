@@ -155,6 +155,19 @@ def main(argv=None) -> int:
         ),
     )
     parser.add_argument(
+        "--ablations",
+        action="store_true",
+        help=(
+            "also evaluate, per arm: the untrained policy on a live substrate, "
+            "the trained policy with the substrate silenced, the trained policy "
+            "with the observation blanked, and uniform random play. Costs four "
+            "extra evaluations per arm and per seed. Without these a score is "
+            "not evidence: a policy that scores the same with its observation "
+            "removed is a clock, and an ordering between clocks is not a "
+            "topology result."
+        ),
+    )
+    parser.add_argument(
         "--only",
         choices=["both", "raw", "standardised"],
         default="both",
@@ -229,6 +242,7 @@ def main(argv=None) -> int:
             progress=progress,
             standardise=standardise,
             coupling=args.coupling,
+            ablations=args.ablations,
             **train_kwargs,
         )
 

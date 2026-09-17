@@ -263,6 +263,23 @@ class SpikingPolicy(nn.Module):
         self.register_buffer("readout_scale", torch.ones(n_out))
         self.register_buffer("standardised", torch.zeros((), dtype=torch.bool))
 
+        #: An evaluation-only ablation, or ``None`` for the intact policy.
+        #:
+        #: ``"silent"`` replaces the substrate's output with its resting
+        #: constant, so the heads see the same features whatever the game does.
+        #: ``"blank"`` zeroes the observation before it reaches the encoder, so
+        #: the substrate is driven but carries no information about the state.
+        #:
+        #: These exist because a trained policy that ignores its input scores
+        #: the same with the input removed. liuzihe02/fly-craftax found exactly
+        #: that in their own work and described the result as "a clock with a
+        #: small drive-dependent jitter, not a visually guided policy". An arm
+        #: ordering between clocks is not a topology result.
+        #:
+        #: Never set during training. A plain attribute rather than a buffer:
+        #: it must not travel in ``state_dict``.
+        self.ablation: str | None = None
+
         #: What the last :meth:`calibrate_readout` measured, or ``None``.
         #:
         #: Deliberately a plain attribute and not a buffer: it is a record of
@@ -287,6 +304,19 @@ class SpikingPolicy(nn.Module):
         """
         observation = observation.to(self.device)
         batch = observation.shape[0]
+
+        if self.ablation == "silent":
+            # The substrate is not run at all. Returning v_rest rather than
+            # zero keeps the features in the units the heads were trained on:
+            # a silenced readout should look like a resting one, not like a
+            # readout that happens to sit at an arbitrary scale.
+            return torch.full(
+                (batch, int(self.output_indices.numel())),
+                self.params.v_rest_mv,
+                dtype=observation.dtype,
+                device=self.device,
+            )
+
         currents = self.encoder(observation) * self.input_drive_mv
 
         drive = torch.zeros(
@@ -398,6 +428,11 @@ class SpikingPolicy(nn.Module):
         observation = encode_observation(
             game.observe(game.to_move, hide_opponent_hand=True)
         )
+        if self.ablation == "blank":
+            # The substrate still runs, driven by the encoder's bias alone, so
+            # this separates "the policy needs the substrate" from "the policy
+            # needs to know what is on the board".
+            observation = np.zeros_like(observation)
         features = self.features(torch.from_numpy(observation).unsqueeze(0))
 
         kind_code, log_kind = _masked_sample(
@@ -428,6 +463,11 @@ class SpikingPolicy(nn.Module):
         observation = encode_observation(
             game.observe(game.to_move, hide_opponent_hand=True)
         )
+        if self.ablation == "blank":
+            # The substrate still runs, driven by the encoder's bias alone, so
+            # this separates "the policy needs the substrate" from "the policy
+            # needs to know what is on the board".
+            observation = np.zeros_like(observation)
 
         # Rollout collection needs numbers, not a graph. Building one per
         # decision and discarding it costs time and memory for nothing; the
