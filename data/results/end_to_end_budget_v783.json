@@ -1,0 +1,37 @@
+{
+ "label": "end_to_end_budget",
+ "question": "What does a pilot actually cost end to end on the 4070 Ti, now that one completes, and what does that imply for the pre-registered confirmatory series?",
+ "method": "Two identical runs differing only in --steps, so the marginal cost of training is measured rather than inferred: --seeds 1 --eval-episodes 5 --only raw --coupling gather --minibatch 8, at --steps 300 and --steps 600.",
+ "device": "NVIDIA GeForce RTX 4070 Ti, 12282 MiB",
+ "measurements": {
+  "steps_300_seconds": 415,
+  "steps_600_seconds": 811,
+  "marginal_seconds_per_300_steps_x_3_arms": 396,
+  "seconds_per_env_step_per_arm": 0.44,
+  "fixed_seconds_per_run": 19.0,
+  "fixed_covers": "graph build (3.2 s), policy construction, and 5 evaluation episodes on each of 3 arms",
+  "peak_gpu_mb": 8093
+ },
+ "projection": {
+  "default_pilot_hours": 2.2,
+  "default_pilot_shape": "2 seeds x 1500 steps x 3 arms x 2 variants",
+  "preregistered_confirmatory_hours": 1833.0,
+  "preregistered_confirmatory_shape": "5e5 steps x 10 seeds x 3 arms",
+  "prior_estimate_hours": 4700,
+  "prior_estimate_source": "decision_window_v783.json, M1 Pro at the restored window"
+ },
+ "verdict": "The default pilot is now an overnight job at about 2.2 hours. The pre-registered confirmatory series is about 1830 hours, roughly 76 days on one card, so it remains infeasible.",
+ "reasoning": [
+  "Scaling is linear and the two runs pin it tightly: 415 s at 300 steps and 811 s at 600 give 0.44 s per env-step per arm and about 19 s of fixed cost, which is exactly the graph build plus fifteen evaluation episodes.",
+  "The card bought far less than the benchmark suggested. 4700 h on an M1 Pro becomes 1830 h here -- a factor of 2.6 -- while the rollout benchmark showed 132x at 30 steps. Both numbers are right and they measure different things.",
+  "The reason is the shape of the work. The benchmark times one batched forward+backward through the window. A pilot spends most of its time collecting rollouts, and each env decision is a single forward at batch 1 through 300 sequential steps, which is bound by kernel-launch latency and gains almost nothing from the card.",
+  "That is also where the remaining speedup is. Batch is nearly free: gather at 300 steps costs 274 ms at batch 1 and 280 ms at batch 8. Vectorising the environment so rollout collection uses the batch dimension would convert almost the whole of that idle capacity, and it is an implementation change rather than a protocol amendment."
+ ],
+ "caveats": [
+  "Both runs scored -1.0 on every arm with zero truncated episodes: real losses by an untrained policy, not a hang. Timing is unaffected by the scores, but nothing here says the experiment learns anything.",
+  "Measured at minibatch 8, which is a deviation from the registered 32. A different minibatch changes the update cost and therefore this projection.",
+  "Single seed, single variant, one repeat each. The linearity check is two points, not a fit."
+ ],
+ "consequence": "Run the default pilot; it fits in a night. The confirmatory series needs either a vectorised environment or a protocol decision on seeds, per-seed budget or subset size -- and not dt, which dt_sensitivity_v783.json rules out.",
+ "generated": "2026-09-17"
+}

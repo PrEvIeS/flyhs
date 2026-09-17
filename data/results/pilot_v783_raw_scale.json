@@ -1,0 +1,74 @@
+{
+  "label": "pilot",
+  "scores": {
+    "real": [
+      [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ]
+    ],
+    "shuffled": [
+      [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ]
+    ],
+    "random": [
+      [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ]
+    ]
+  },
+  "provenance": {
+    "device": "cuda",
+    "torch": "2.14.0+cu130",
+    "numpy": "2.5.3",
+    "python": "3.13.13",
+    "host": "Windows-11-10.0.26200-SP0",
+    "manifest": {
+      "connections.csv.gz": "d49dd692e59e153aa3c83f5257bfc0eff51247b86d7bb183386c6d1622c70fc9",
+      "classification.csv.gz": "e946b552f4056dfc977707be0674609832c3f64332a22d69dc0d9615e7aae663",
+      "neurons.csv.gz": "6a6b3759e635f0f35a677d169052362131ec61d95f55919298b55c43fce4e719",
+      "cell_stats.csv.gz": "bd5879e1b5df964bea2f3ca5316348d4276ce2ccaac283f0e36583c04fbd3d8e"
+    },
+    "calibration": {},
+    "truncated_episodes": {
+      "real": [
+        0
+      ],
+      "shuffled": [
+        0
+      ],
+      "random": [
+        0
+      ]
+    }
+  },
+  "config": {
+    "n_seeds": 1,
+    "total_steps": 600,
+    "n_eval_episodes": 5,
+    "rank": 8,
+    "decision_window_steps": 300,
+    "decision_window_ms": 30.0,
+    "arm_seed": 0,
+    "swaps_per_edge": 100,
+    "standardise": false,
+    "coupling": "gather",
+    "n_neurons": 15400,
+    "n_edges": 310867,
+    "train_kwargs": {
+      "minibatch": "8"
+    }
+  }
+}
