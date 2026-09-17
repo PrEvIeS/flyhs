@@ -100,9 +100,29 @@ pre-registered minibatch is 32, so running at 8 is a documented deviation.
 
 ## The run
 
+Three flags are not optional on this card, and the run fails without them:
+
 ```powershell
-uv run --no-sync python -m flywire_rl.run_pilot --coupling gather
+uv run --no-sync python -m flywire_rl.run_pilot --coupling gather --minibatch 8
 ```
+
+`--coupling gather` because sparse cannot reach the window at all.
+`--minibatch 8` because the pre-registered 32 is the batch dimension of a
+300-step BPTT and raises `OutOfMemoryError` in the PPO update -- measured, not
+predicted: the first attempt died having failed to find two more megabytes.
+`--no-sync` because a bare `uv run` reinstalls the CPU wheel over the CUDA one.
+
+Running at a minibatch of 8 is a deviation from the registered `train_kwargs`,
+and `run_pilot` records it in the result's `config.train_kwargs` so it cannot
+be lost.
+
+Measured end to end with those flags: 3 arms, 1 seed, 300 env steps and 5
+evaluation episodes took 415 s and peaked at about 8.1 GB. That run scored
+-1.0 on all three arms with zero truncated episodes -- genuine losses by a
+policy trained for 300 steps against a registered budget of 500,000, not a
+mechanical hang. The distinction is only readable because `provenance` now
+carries `truncated_episodes`; a truncated episode scores 0.0, exactly like a
+draw.
 
 That is the fly-ky7.11 comparison: the same pilot twice, once with the readout
 standardised per arm and once without, writing
