@@ -1,0 +1,215 @@
+{
+ "label": "fly-ky7.11 amplitude control, first measurement on HEAD",
+ "question": "Is the pilot's arm ordering an artefact of the real connectome delivering more signal to the readout, rather than computing better?",
+ "method": "run_pilot --seeds 1 --steps 600 --eval-episodes 20 --coupling gather --minibatch 8, both variants. Calibration statistics are measured before training on 64 shared reference states, per arm, and now recorded in provenance.",
+ "calibration": {
+  "real": {
+   "n_states": 64.0,
+   "n_units": 44.0,
+   "dead_units": 1.0,
+   "mean_abs_mean": 54.46128845214844,
+   "median_sd": 0.546843945980072,
+   "feature_rms": 55.646034240722656
+  },
+  "shuffled": {
+   "n_states": 64.0,
+   "n_units": 44.0,
+   "dead_units": 1.0,
+   "mean_abs_mean": 52.89563751220703,
+   "median_sd": 0.5379839539527893,
+   "feature_rms": 52.93156051635742
+  },
+  "random": {
+   "n_states": 64.0,
+   "n_units": 44.0,
+   "dead_units": 0.0,
+   "mean_abs_mean": 51.1418342590332,
+   "median_sd": 0.5318071842193604,
+   "feature_rms": 51.1808967590332
+  }
+ },
+ "median_sd": {
+  "real": 0.546843945980072,
+  "shuffled": 0.5379839539527893,
+  "random": 0.5318071842193604
+ },
+ "spread_real_over_random": 0.0283,
+ "history": {
+  "amendment_A4": {
+   "real": 70.1,
+   "shuffled": 13.72,
+   "random": 4.88,
+   "spread": 13.36,
+   "note": "produced by the per-arm branching calibration that 7dd3bd6 removed as a confound"
+  },
+  "predicted_at_restored_window": {
+   "real": 0.5194,
+   "shuffled": 0.4946,
+   "random": 0.4659,
+   "spread": 0.115,
+   "source": "decision_window_v783.json"
+  }
+ },
+ "scores": {
+  "raw": {
+   "real": [
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0
+   ],
+   "shuffled": [
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0
+   ],
+   "random": [
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0
+   ]
+  },
+  "standardised": {
+   "real": [
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0
+   ],
+   "shuffled": [
+    -1.0,
+    1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0
+   ],
+   "random": [
+    -1.0,
+    1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0
+   ]
+  }
+ },
+ "truncated_episodes": {
+  "real": [
+   0
+  ],
+  "shuffled": [
+   0
+  ],
+  "random": [
+   0
+  ]
+ },
+ "verdict": "The amplitude ordering survives but the confound does not. Median readout s.d. is 0.5468 / 0.5380 / 0.5318 for real / shuffled / random, a spread of 2.8%. A4 recorded a factor of fourteen; the restored-window diagnosis predicted eleven percent. Measured through the real pipeline it is under three.",
+ "reasoning": [
+  "The ordering real > shuffled > random is intact, so it is not noise in direction. Its magnitude is what has collapsed, from 1336 percent at A4 to 2.8 percent here.",
+  "Standardisation was real, not a no-op over a dead readout: dead units are 1, 1 and 0 of 44. That is precisely the distinction the calibration record was added to make, and it could not be checked before, because the statistics were computed and discarded.",
+  "Zero truncated episodes in all six arm-runs, so every score is a genuine terminal result."
+ ],
+ "caveats": [
+  "One seed, 600 training steps against a registered budget of 500,000. The scores carry no information: raw is -1.0 on every arm, standardised is -1.0 / -0.9 / -0.9, which is one win in twenty on two arms and is noise. Only the calibration figures are informative here, and they are measured before training.",
+  "Measured at the production drive of 20.0, which drive_at_window_v783 shows puts the random arm in a runaway regime (active fraction 0.60 against a 0.25 ceiling) while the other two are not. The amplitude comparison inherits that.",
+  "Minibatch 8 rather than the registered 32, and gather rather than the default sparse. Both are recorded in config."
+ ],
+ "consequence": "fly-ky7.11 can be answered, and at this point the answer is that the amplitude confound is small. What blocks the comparison is no longer the confound but the floor: at this budget every arm loses every game, so the evaluation has no discriminating power at all.",
+ "generated": "2026-09-17"
+}
