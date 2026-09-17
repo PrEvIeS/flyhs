@@ -1,0 +1,46 @@
+{
+ "label": "gradient_reach",
+ "question": "Does the gradient reach the encoder and the adapter on the real subset, or is the floor we observe a training signal that never arrives?",
+ "method": "One forward+backward of (log_prob + value) through a rich MiniCard state, 300 steps, rank 8, gather coupling, on the real P1 subset. Mirrors the two xfail(strict=True) tests, which measure the same thing on a 40-neuron fixture.",
+ "device": "NVIDIA GeForce RTX 4070 Ti",
+ "n_neurons": 15400,
+ "n_edges": 310867,
+ "results": [
+  {
+   "drive_mv": 20.0,
+   "readout_units": 44,
+   "readout_units_moved_from_rest": 42,
+   "readout_spread_mv": 6.792839050292969,
+   "grad_encoder": 202386.328125,
+   "grad_head_kind": 0.0941077172756195,
+   "grad_head_value": 2247.068603515625,
+   "grad_adapter_A": 0.0,
+   "grad_adapter_B": 0.04599541425704956,
+   "n_legal_actions": 10,
+   "encoder_receives_gradient": true,
+   "adapter_receives_gradient": true
+  },
+  {
+   "drive_mv": 0.25,
+   "readout_units": 44,
+   "readout_units_moved_from_rest": 1,
+   "readout_spread_mv": 0.12653732299804688,
+   "grad_encoder": 52.793243408203125,
+   "grad_head_kind": 0.16135753691196442,
+   "grad_head_value": 2288.12646484375,
+   "grad_adapter_A": 0.0,
+   "grad_adapter_B": 0.00024223400396294892,
+   "n_legal_actions": 10,
+   "encoder_receives_gradient": true,
+   "adapter_receives_gradient": true
+  }
+ ],
+ "generated": "2026-09-17",
+ "verdict": "The gradient reaches the encoder on the real subset. The floor we observe is too little training, not an absent training signal.",
+ "reasoning": [
+  "At the production drive the encoder gradient is 2.0e5, not zero or marginal, and 42 of 44 readout units have moved from rest with a 6.8 mV spread. The two xfail(strict=True) markers predict the opposite, but they measure a 40-neuron fixture; on 15,400 neurons with real topology the lockstep they describe does not reproduce.",
+  "The adapter's A matrix shows exactly zero gradient at both drives, and that is correct rather than broken: B is initialised to zeros (spiking.py:92) and the delta is (B[pre] * A[:, post].T).sum(-1), so d/dA is proportional to B and vanishes at initialisation. The adapter starts as an exact no-op, which is what keeps the arms identical to their frozen wiring at step zero, and A begins receiving gradient after the first optimiser step.",
+  "At drive 0.25 -- the value the liveness criterion admits when the drive is swept alone -- only 1 of 44 readout units moves, the spread is 0.127 mV, and the encoder gradient falls by a factor of 3800. Satisfying the criterion on that axis costs almost all of the readout signal."
+ ],
+ "consequence": "Spending compute on a longer run is justified. But the drive cannot be chosen by sweeping the drive: see operating_point_v783.json, which maps the (drive, w_syn) plane instead."
+}

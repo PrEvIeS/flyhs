@@ -1,0 +1,509 @@
+{
+ "label": "operating_point",
+ "question": "Where in (drive, w_syn) do all three arms satisfy the liveness criterion while the readout still carries signal?",
+ "method": "controls.activity_profile, forward only, 300 steps, batch 2, per arm. Columns are active_fraction / readout_live out of 44.",
+ "criterion": {
+  "max_active_fraction": 0.25,
+  "min_readout_live": 1,
+  "source": "controls.calibrate_w_syn defaults"
+ },
+ "published_w_syn_mv": 0.275,
+ "production_drive_mv": 20.0,
+ "device": "cuda",
+ "generated": "2026-09-17T06:09:05+00:00",
+ "results": [
+  {
+   "w_syn_mv": 0.069,
+   "drive_mv": 0.25,
+   "arms": {
+    "real": {
+     "active_fraction": 0.0762,
+     "readout_live": 2,
+     "rate_hz": 14.0
+    },
+    "shuffled": {
+     "active_fraction": 0.0701,
+     "readout_live": 0,
+     "rate_hz": 13.634
+    },
+    "random": {
+     "active_fraction": 0.0719,
+     "readout_live": 0,
+     "rate_hz": 13.686
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 0,
+   "max_active_fraction_seen": 0.0762
+  },
+  {
+   "w_syn_mv": 0.069,
+   "drive_mv": 1.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.0831,
+     "readout_live": 6,
+     "rate_hz": 25.779
+    },
+    "shuffled": {
+     "active_fraction": 0.0766,
+     "readout_live": 0,
+     "rate_hz": 25.21
+    },
+    "random": {
+     "active_fraction": 0.0899,
+     "readout_live": 0,
+     "rate_hz": 25.69
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 0,
+   "max_active_fraction_seen": 0.0899
+  },
+  {
+   "w_syn_mv": 0.069,
+   "drive_mv": 5.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.0875,
+     "readout_live": 6,
+     "rate_hz": 30.58
+    },
+    "shuffled": {
+     "active_fraction": 0.0807,
+     "readout_live": 0,
+     "rate_hz": 29.918
+    },
+    "random": {
+     "active_fraction": 0.1054,
+     "readout_live": 0,
+     "rate_hz": 30.794
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 0,
+   "max_active_fraction_seen": 0.1054
+  },
+  {
+   "w_syn_mv": 0.069,
+   "drive_mv": 20.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.0882,
+     "readout_live": 6,
+     "rate_hz": 32.881
+    },
+    "shuffled": {
+     "active_fraction": 0.0823,
+     "readout_live": 0,
+     "rate_hz": 32.255
+    },
+    "random": {
+     "active_fraction": 0.1092,
+     "readout_live": 0,
+     "rate_hz": 33.253
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 0,
+   "max_active_fraction_seen": 0.1092
+  },
+  {
+   "w_syn_mv": 0.138,
+   "drive_mv": 0.25,
+   "arms": {
+    "real": {
+     "active_fraction": 0.0881,
+     "readout_live": 6,
+     "rate_hz": 14.749
+    },
+    "shuffled": {
+     "active_fraction": 0.0771,
+     "readout_live": 0,
+     "rate_hz": 13.944
+    },
+    "random": {
+     "active_fraction": 0.094,
+     "readout_live": 0,
+     "rate_hz": 14.519
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 0,
+   "max_active_fraction_seen": 0.094
+  },
+  {
+   "w_syn_mv": 0.138,
+   "drive_mv": 1.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.106,
+     "readout_live": 8,
+     "rate_hz": 27.188
+    },
+    "shuffled": {
+     "active_fraction": 0.0994,
+     "readout_live": 2,
+     "rate_hz": 26.307
+    },
+    "random": {
+     "active_fraction": 0.1704,
+     "readout_live": 6,
+     "rate_hz": 29.16
+    }
+   },
+   "all_arms_pass": true,
+   "worst_readout_live": 2,
+   "max_active_fraction_seen": 0.1704
+  },
+  {
+   "w_syn_mv": 0.138,
+   "drive_mv": 5.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.1136,
+     "readout_live": 10,
+     "rate_hz": 32.186
+    },
+    "shuffled": {
+     "active_fraction": 0.1092,
+     "readout_live": 3,
+     "rate_hz": 31.372
+    },
+    "random": {
+     "active_fraction": 0.224,
+     "readout_live": 8,
+     "rate_hz": 36.097
+    }
+   },
+   "all_arms_pass": true,
+   "worst_readout_live": 3,
+   "max_active_fraction_seen": 0.224
+  },
+  {
+   "w_syn_mv": 0.138,
+   "drive_mv": 20.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.1152,
+     "readout_live": 11,
+     "rate_hz": 34.543
+    },
+    "shuffled": {
+     "active_fraction": 0.1122,
+     "readout_live": 3,
+     "rate_hz": 33.786
+    },
+    "random": {
+     "active_fraction": 0.2368,
+     "readout_live": 8,
+     "rate_hz": 38.974
+    }
+   },
+   "all_arms_pass": true,
+   "worst_readout_live": 3,
+   "max_active_fraction_seen": 0.2368
+  },
+  {
+   "w_syn_mv": 0.275,
+   "drive_mv": 0.25,
+   "arms": {
+    "real": {
+     "active_fraction": 0.1255,
+     "readout_live": 10,
+     "rate_hz": 16.673
+    },
+    "shuffled": {
+     "active_fraction": 0.1066,
+     "readout_live": 3,
+     "rate_hz": 15.335
+    },
+    "random": {
+     "active_fraction": 0.2134,
+     "readout_live": 9,
+     "rate_hz": 19.463
+    }
+   },
+   "all_arms_pass": true,
+   "worst_readout_live": 3,
+   "max_active_fraction_seen": 0.2134
+  },
+  {
+   "w_syn_mv": 0.275,
+   "drive_mv": 1.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.1556,
+     "readout_live": 14,
+     "rate_hz": 30.379
+    },
+    "shuffled": {
+     "active_fraction": 0.1518,
+     "readout_live": 6,
+     "rate_hz": 29.29
+    },
+    "random": {
+     "active_fraction": 0.4698,
+     "readout_live": 16,
+     "rate_hz": 43.786
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 6,
+   "max_active_fraction_seen": 0.4698
+  },
+  {
+   "w_syn_mv": 0.275,
+   "drive_mv": 5.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.1719,
+     "readout_live": 15,
+     "rate_hz": 36.035
+    },
+    "shuffled": {
+     "active_fraction": 0.2017,
+     "readout_live": 9,
+     "rate_hz": 36.68
+    },
+    "random": {
+     "active_fraction": 0.5851,
+     "readout_live": 24,
+     "rate_hz": 55.639
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 9,
+   "max_active_fraction_seen": 0.5851
+  },
+  {
+   "w_syn_mv": 0.275,
+   "drive_mv": 20.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.1762,
+     "readout_live": 15,
+     "rate_hz": 38.636
+    },
+    "shuffled": {
+     "active_fraction": 0.2104,
+     "readout_live": 10,
+     "rate_hz": 39.431
+    },
+    "random": {
+     "active_fraction": 0.6037,
+     "readout_live": 25,
+     "rate_hz": 59.087
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 10,
+   "max_active_fraction_seen": 0.6037
+  },
+  {
+   "w_syn_mv": 0.413,
+   "drive_mv": 0.25,
+   "arms": {
+    "real": {
+     "active_fraction": 0.1655,
+     "readout_live": 13,
+     "rate_hz": 18.665
+    },
+    "shuffled": {
+     "active_fraction": 0.1682,
+     "readout_live": 9,
+     "rate_hz": 18.411
+    },
+    "random": {
+     "active_fraction": 0.4968,
+     "readout_live": 17,
+     "rate_hz": 32.353
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 9,
+   "max_active_fraction_seen": 0.4968
+  },
+  {
+   "w_syn_mv": 0.413,
+   "drive_mv": 1.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.2155,
+     "readout_live": 17,
+     "rate_hz": 34.329
+    },
+    "shuffled": {
+     "active_fraction": 0.2487,
+     "readout_live": 15,
+     "rate_hz": 34.996
+    },
+    "random": {
+     "active_fraction": 0.8034,
+     "readout_live": 34,
+     "rate_hz": 66.712
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 15,
+   "max_active_fraction_seen": 0.8034
+  },
+  {
+   "w_syn_mv": 0.413,
+   "drive_mv": 5.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.2241,
+     "readout_live": 18,
+     "rate_hz": 39.777
+    },
+    "shuffled": {
+     "active_fraction": 0.3175,
+     "readout_live": 19,
+     "rate_hz": 44.258
+    },
+    "random": {
+     "active_fraction": 0.8514,
+     "readout_live": 37,
+     "rate_hz": 79.799
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 18,
+   "max_active_fraction_seen": 0.8514
+  },
+  {
+   "w_syn_mv": 0.413,
+   "drive_mv": 20.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.2281,
+     "readout_live": 18,
+     "rate_hz": 42.42
+    },
+    "shuffled": {
+     "active_fraction": 0.3213,
+     "readout_live": 20,
+     "rate_hz": 46.874
+    },
+    "random": {
+     "active_fraction": 0.8584,
+     "readout_live": 37,
+     "rate_hz": 83.524
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 18,
+   "max_active_fraction_seen": 0.8584
+  },
+  {
+   "w_syn_mv": 0.619,
+   "drive_mv": 0.25,
+   "arms": {
+    "real": {
+     "active_fraction": 0.2289,
+     "readout_live": 17,
+     "rate_hz": 22.288
+    },
+    "shuffled": {
+     "active_fraction": 0.3147,
+     "readout_live": 21,
+     "rate_hz": 26.812
+    },
+    "random": {
+     "active_fraction": 0.8718,
+     "readout_live": 37,
+     "rate_hz": 60.574
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 17,
+   "max_active_fraction_seen": 0.8718
+  },
+  {
+   "w_syn_mv": 0.619,
+   "drive_mv": 1.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.3045,
+     "readout_live": 20,
+     "rate_hz": 41.524
+    },
+    "shuffled": {
+     "active_fraction": 0.386,
+     "readout_live": 21,
+     "rate_hz": 45.219
+    },
+    "random": {
+     "active_fraction": 0.9245,
+     "readout_live": 39,
+     "rate_hz": 94.803
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 20,
+   "max_active_fraction_seen": 0.9245
+  },
+  {
+   "w_syn_mv": 0.619,
+   "drive_mv": 5.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.2792,
+     "readout_live": 21,
+     "rate_hz": 44.682
+    },
+    "shuffled": {
+     "active_fraction": 0.4381,
+     "readout_live": 23,
+     "rate_hz": 54.855
+    },
+    "random": {
+     "active_fraction": 0.9349,
+     "readout_live": 40,
+     "rate_hz": 107.732
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 21,
+   "max_active_fraction_seen": 0.9349
+  },
+  {
+   "w_syn_mv": 0.619,
+   "drive_mv": 20.0,
+   "arms": {
+    "real": {
+     "active_fraction": 0.2881,
+     "readout_live": 21,
+     "rate_hz": 47.662
+    },
+    "shuffled": {
+     "active_fraction": 0.4442,
+     "readout_live": 22,
+     "rate_hz": 57.972
+    },
+    "random": {
+     "active_fraction": 0.9351,
+     "readout_live": 40,
+     "rate_hz": 111.444
+    }
+   },
+   "all_arms_pass": false,
+   "worst_readout_live": 21,
+   "max_active_fraction_seen": 0.9351
+  }
+ ],
+ "verdict": "The squeeze resolves on w_syn, not on the drive. At half the published w_syn all three arms satisfy the criterion at the production drive of 20.0, with a live readout.",
+ "reasoning": [
+  "At w_syn 0.138 the criterion holds at drive 1, 5 and 20, with readout live 11 / 3 / 8 of 44 for real / shuffled / random at drive 20. At the published 0.275 the random arm passes only at drive 0.25, where the readout is nearly dead.",
+  "Four of twenty cells pass on all three arms, and three of them sit at w_syn 0.138. The binding constraint everywhere is the random arm's active fraction, never the real arm's.",
+  "W_SYN_CANDIDATES in controls.py is 0.275 * 1.5^k for k in 0..10, i.e. it searches only upward from the published value, reasoning that a subset retains a fraction of each neuron's real input. The measurement points the other way: at the production drive the problem is too much propagation in the random arm. calibrate_w_syn cannot find this operating point with its current grid.",
+  "Compliance costs readout units. At the published w_syn and drive 20 the readout is live on 15 / 10 / 25 units; at half that it is 11 / 3 / 8. Three live outputs of 44 for the shuffled arm is thin."
+ ],
+ "caveats": [
+  "Forward only, untrained policy, batch 2. This is the regime a run starts in, which is what the criterion describes, not where training ends up.",
+  "A coarse 5x4 grid. The boundary between compliance and runaway sits somewhere between w_syn 0.138 and 0.275 at the production drive and has not been narrowed.",
+  "w_syn is described in the codebase as the single free parameter of the Shiu parameterisation, fitted on the whole brain. Halving it is a protocol decision, not a tuning knob."
+ ],
+ "consequence": "Retract the earlier recommendation of drive 0.2-0.25 from drive_fine_v783.json: it optimises one criterion in isolation and nearly kills the readout, as gradient_reach_v783.json shows directly. Choose the operating point in the plane, and extend calibrate_w_syn's grid downward before trusting it."
+}
